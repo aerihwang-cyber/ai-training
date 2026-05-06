@@ -1174,6 +1174,9 @@
       <button class="ctrl-btn" id="ctrl-feedback" onclick="toggleFeedback()">
         <span>💬</span> 피드백 받기
       </button>
+      <button class="ctrl-btn" onclick="showBulkComplete()">
+        <span>⚡</span> 단계 일괄 완료
+      </button>
       <button class="ctrl-btn danger" onclick="confirmReset()">
         <span>🔄</span> 세션 초기화
       </button>
@@ -2039,6 +2042,72 @@ function toggleFeedback() {
     .then(() => showToast(open ? '피드백 수집을 닫았습니다.' : '피드백 수집을 열었습니다!', 'success'))
 }
 
+function showBulkComplete() {
+  const steps = (APP.config && APP.config.steps) || []
+  if (steps.length === 0) { showToast('단계가 없습니다.'); return }
+
+  const modal = el('bulk-modal')
+  const list = el('bulk-step-list')
+
+  list.innerHTML = steps.map((step, si) => `
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:border-color .15s;"
+           onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#3b82f6':'#e5e7eb'">
+      <input type="checkbox" data-step-idx="${si}" style="margin-top:2px;accent-color:#2563eb;width:15px;height:15px;cursor:pointer;"
+             onchange="this.closest('label').style.borderColor=this.checked?'#3b82f6':'#e5e7eb'">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#111827;">${si+1}단계: ${escHtml(step.title)}</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px;">
+          완료 버튼: ${step.tasks.map(t => escHtml(t.label)).join(', ')}
+        </div>
+      </div>
+    </label>
+  `).join('')
+
+  modal.style.display = 'flex'
+}
+
+function closeBulkModal() {
+  el('bulk-modal').style.display = 'none'
+}
+
+async function executeBulkComplete() {
+  const steps = (APP.config && APP.config.steps) || []
+  const checked = document.querySelectorAll('#bulk-step-list input[type=checkbox]:checked')
+
+  if (checked.length === 0) { showToast('단계를 하나 이상 선택해주세요.'); return }
+
+  // Collect all task IDs for selected steps
+  const taskIds = []
+  checked.forEach(cb => {
+    const si = parseInt(cb.dataset.stepIdx)
+    steps[si].tasks.forEach(t => taskIds.push(t.id))
+  })
+
+  // Get all students
+  const snap = await sessionRef('students').once('value')
+  const updates = {}
+  snap.forEach(child => {
+    taskIds.forEach(tid => {
+      updates[`${child.key}/completions/${tid}`] = true
+    })
+  })
+
+  try {
+    await sessionRef('students').update(updates)
+    const stepNames = Array.from(checked).map(cb => `${parseInt(cb.dataset.stepIdx)+1}단계`)
+    showToast(`${stepNames.join(', ')} 일괄 완료 적용됨 ✅`, 'success')
+    closeBulkModal()
+  } catch(e) {
+    showToast('오류: ' + e.message, 'error')
+  }
+}
+
+// 모달 외부 클릭 시 닫기
+document.addEventListener('click', e => {
+  const modal = el('bulk-modal')
+  if (modal && e.target === modal) closeBulkModal()
+})
+
 function confirmReset() {
   if (confirm('수강생 완료 현황을 모두 초기화할까요? 이름/자리 정보는 유지됩니다.')) {
     sessionRef('students').once('value').then(snap => {
@@ -2141,5 +2210,21 @@ document.addEventListener('keydown', e => {
   }
 })
 </script>
+<!-- 일괄 완료 모달 -->
+<div id="bulk-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px;width:440px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="font-size:17px;font-weight:700;margin-bottom:6px;">⚡ 단계 일괄 완료</div>
+    <div style="font-size:13px;color:#6b7280;margin-bottom:20px;">선택한 단계의 완료 버튼을 <b>전체 수강생</b>에게 일괄 적용합니다</div>
+
+    <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">단계 선택</div>
+    <div id="bulk-step-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;max-height:260px;overflow-y:auto;"></div>
+
+    <div style="display:flex;gap:8px;">
+      <button onclick="executeBulkComplete()" style="flex:1;padding:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">일괄 완료 적용</button>
+      <button onclick="closeBulkModal()" style="padding:11px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:inherit;font-size:14px;cursor:pointer;">취소</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
