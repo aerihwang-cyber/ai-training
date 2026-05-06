@@ -757,6 +757,23 @@
       transition: box-shadow .2s;
     }
     .student-card-instr:hover { box-shadow: var(--shadow-md); }
+    .student-card-instr { position: relative; }
+    .sci-delete-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--ink-soft);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity .15s, background .15s, color .15s;
+    }
+    .student-card-instr:hover .sci-delete-btn { opacity: 1; }
+    .sci-delete-btn:hover { background: var(--red-soft); color: var(--red); }
     .sci-name {
       font-size: 14px;
       font-weight: 700;
@@ -1886,15 +1903,30 @@ function renderStudentGrid(students) {
 
     return `
       <div class="student-card-instr">
+        <button class="sci-delete-btn" onclick="deleteStudent('${sid}', '${escAttr(student.name)}')" title="수강생 삭제">✕</button>
         <div class="sci-name">${escHtml(student.name)}</div>
-
         <div class="sci-steps">${chips}</div>
-        <div style="margin-top:8px;font-size:11px;color:var(--ink-soft);">
-          진행 ${pct}% (${doneTasks}/${totalTasks})
+        <div style="margin-top:8px;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;justify-content:space-between;">
+          <span>진행 ${pct}% (${doneTasks}/${totalTasks})</span>
+          ${doneTasks > 0 ? `<button onclick="resetStudent('${sid}', '${escAttr(student.name)}')" style="font-size:10px;padding:2px 6px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--ink-soft);cursor:pointer;" title="완료 초기화">↺ 초기화</button>` : ''}
         </div>
       </div>
     `
   }).join('')
+}
+
+function deleteStudent(sid, name) {
+  if (!confirm(`"${name}" 수강생을 목록에서 삭제할까요?`)) return
+  sessionRef(`students/${sid}`).remove()
+    .then(() => showToast(`${name} 삭제됨`, 'success'))
+    .catch(e => showToast('오류: ' + e.message, 'error'))
+}
+
+function resetStudent(sid, name) {
+  if (!confirm(`"${name}"의 완료 현황을 초기화할까요?`)) return
+  sessionRef(`students/${sid}/completions`).set({})
+    .then(() => showToast(`${name} 초기화됨`, 'success'))
+    .catch(e => showToast('오류: ' + e.message, 'error'))
 }
 
 function renderStepSummary(students) {
