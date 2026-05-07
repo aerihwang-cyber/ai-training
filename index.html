@@ -1921,7 +1921,7 @@ function renderStudentGrid(students) {
         <div class="sci-steps">${chips}</div>
         <div style="margin-top:8px;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;justify-content:space-between;">
           <span>진행 ${pct}% (${doneTasks}/${totalTasks})</span>
-          ${doneTasks > 0 ? `<button onclick="resetStudent('${sid}', '${escAttr(student.name)}')" style="font-size:10px;padding:2px 6px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--ink-soft);cursor:pointer;" title="완료 초기화">↺ 초기화</button>` : ''}
+          ${doneTasks > 0 ? '<button onclick="resetStudent(\'' + sid + '\', \''+escAttr(student.name)+'\')" style="font-size:10px;padding:2px 6px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--ink-soft);cursor:pointer;" title="완료 초기화">↺ 초기화</button>' : ''}
         </div>
       </div>
     `
@@ -2128,8 +2128,7 @@ function exportFeedbackCSV() {
     f.timestamp ? new Date(f.timestamp).toLocaleString('ko-KR') : ''
   ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
 
-  const csv = BOM + [headers.join(','), ...rows].join('
-')
+  const csv = BOM + [headers.join(','), ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -2159,19 +2158,17 @@ function showBulkComplete() {
   const modal = el('bulk-modal')
   const list = el('bulk-step-list')
 
-  list.innerHTML = steps.map((step, si) => `
-    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:border-color .15s;"
-           onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#3b82f6':'#e5e7eb'">
-      <input type="checkbox" data-step-idx="${si}" style="margin-top:2px;accent-color:#2563eb;width:15px;height:15px;cursor:pointer;"
-             onchange="this.closest('label').style.borderColor=this.checked?'#3b82f6':'#e5e7eb'">
-      <div>
-        <div style="font-size:13px;font-weight:600;color:#111827;">${si+1}단계: ${escHtml(step.title)}</div>
-        <div style="font-size:11px;color:#9ca3af;margin-top:2px;">
-          완료 버튼: ${step.tasks.map(t => escHtml(t.label)).join(', ')}
-        </div>
-      </div>
-    </label>
-  `).join('')
+  list.innerHTML = steps.map(function(step, si) {
+    var taskLabels = step.tasks.map(function(t) { return escHtml(t.label) }).join(', ')
+    var html = '<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;">'
+    html += '<input type="checkbox" data-step-idx="' + si + '" style="margin-top:2px;accent-color:#2563eb;width:15px;height:15px;cursor:pointer;"'
+    html += ' onchange="this.closest(\'label\').style.borderColor=this.checked?\'#3b82f6\':\'#e5e7eb\'">'
+    html += '<div>'
+    html += '<div style="font-size:13px;font-weight:600;color:#111827;">' + (si+1) + '단계: ' + escHtml(step.title) + '</div>'
+    html += '<div style="font-size:11px;color:#9ca3af;margin-top:2px;">완료 버튼: ' + taskLabels + '</div>'
+    html += '</div></label>'
+    return html
+  }).join('')
 
   modal.style.display = 'flex'
 }
@@ -2235,51 +2232,50 @@ function closeStepEditor() {
 
 function renderStepEditorList() {
   const steps = APP.editingSteps || []
-  el('step-editor-list').innerHTML = steps.map((step, si) => `
-    <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:14px;background:#fafafa;" id="edit-step-${si}">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <div style="width:26px;height:26px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${si+1}</div>
-        <input value="${escAttr(step.title)}"
-          oninput="APP.editingSteps[${si}].title=this.value"
-          style="flex:1;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:inherit;font-size:14px;font-weight:600;outline:none;"
-          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e5e7eb'"
-          placeholder="단계 제목">
-        <button onclick="removeEditStep(${si})"
-          style="padding:6px 10px;border-radius:7px;border:1.5px solid #fee2e2;background:#fff;color:#dc2626;font-size:12px;cursor:pointer;white-space:nowrap;"
-          onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fff'">
-          🗑️ 삭제
-        </button>
-      </div>
-      <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;">완료 버튼</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;" id="edit-tasks-${si}">
-        ${step.tasks.map((task, ti) => `
-          <div style="display:flex;align-items:center;gap:4px;">
-            <input value="${escAttr(task.label)}"
-              oninput="APP.editingSteps[${si}].tasks[${ti}].label=this.value"
-              style="padding:5px 9px;border:1.5px solid #e5e7eb;border-radius:16px;font-family:inherit;font-size:12px;width:130px;outline:none;"
-              onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e5e7eb'">
-            ${step.tasks.length > 1 ? `
-              <button onclick="removeEditTask(${si},${ti})"
-                style="width:18px;height:18px;border-radius:50%;border:none;background:#fee2e2;color:#dc2626;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;">×</button>
-            ` : ''}
-          </div>
-        `).join('')}
-        <button onclick="addEditTask(${si})"
-          style="padding:4px 10px;border-radius:16px;border:1.5px dashed #d1d5db;background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;"
-          onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'"
-          onmouseout="this.style.borderColor='#d1d5db';this.style.color='#9ca3af'">
-          + 버튼 추가
-        </button>
-      </div>
-    </div>
-  `).join('') + `
-    <button onclick="addEditStep()"
-      style="width:100%;padding:10px;border:1.5px dashed #d1d5db;border-radius:10px;background:transparent;color:#9ca3af;font-family:inherit;font-size:13px;cursor:pointer;"
-      onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'"
-      onmouseout="this.style.borderColor='#d1d5db';this.style.color='#9ca3af'">
-      + 단계 추가
-    </button>
-  `
+  let html = ''
+
+  steps.forEach(function(step, si) {
+    let taskHtml = ''
+    step.tasks.forEach(function(task, ti) {
+      taskHtml += '<div style="display:flex;align-items:center;gap:4px;">'
+      taskHtml += '<input value="' + escAttr(task.label) + '"'
+      taskHtml += ' oninput="APP.editingSteps[' + si + '].tasks[' + ti + '].label=this.value"'
+      taskHtml += ' style="padding:5px 9px;border:1.5px solid #e5e7eb;border-radius:16px;font-family:inherit;font-size:12px;width:130px;outline:none;"'
+      taskHtml += ' onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e5e7eb\'">'
+      if (step.tasks.length > 1) {
+        taskHtml += '<button onclick="removeEditTask(' + si + ',' + ti + ')"'
+        taskHtml += ' style="width:18px;height:18px;border-radius:50%;border:none;background:#fee2e2;color:#dc2626;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;">×</button>'
+      }
+      taskHtml += '</div>'
+    })
+
+    html += '<div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:14px;background:#fafafa;margin-bottom:8px;">'
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+    html += '<div style="width:26px;height:26px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">' + (si+1) + '</div>'
+    html += '<input value="' + escAttr(step.title) + '"'
+    html += ' oninput="APP.editingSteps[' + si + '].title=this.value"'
+    html += ' style="flex:1;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:inherit;font-size:14px;font-weight:600;outline:none;"'
+    html += ' onfocus="this.style.borderColor=\'#2563eb\'" onblur="this.style.borderColor=\'#e5e7eb\'" placeholder="단계 제목">'
+    html += '<button onclick="removeEditStep(' + si + ')"'
+    html += ' style="padding:6px 10px;border-radius:7px;border:1.5px solid #fee2e2;background:#fff;color:#dc2626;font-size:12px;cursor:pointer;white-space:nowrap;"'
+    html += ' onmouseover="this.style.background=\'\1\'" onmouseout="this.style.background=\'\1\'">🗑️ 삭제</button>'
+    html += '</div>'
+    html += '<div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;">완료 버튼</div>'
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">'
+    html += taskHtml
+    html += '<button onclick="addEditTask(' + si + ')"'
+    html += ' style="padding:4px 10px;border-radius:16px;border:1.5px dashed #d1d5db;background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;"'
+    html += ' onmouseover="this.style.borderColor=\'\1\';this.style.color=\'\1\'"'
+    html += ' onmouseout="this.style.borderColor=\'\1\';this.style.color=\'\1\'">+ 버튼 추가</button>'
+    html += '</div></div>'
+  })
+
+  html += '<button onclick="addEditStep()"'
+  html += ' style="width:100%;padding:10px;border:1.5px dashed #d1d5db;border-radius:10px;background:transparent;color:#9ca3af;font-family:inherit;font-size:13px;cursor:pointer;"'
+  html += ' onmouseover="this.style.borderColor=\'\1\';this.style.color=\'\1\'"'
+  html += ' onmouseout="this.style.borderColor=\'\1\';this.style.color=\'\1\'">+ 단계 추가</button>'
+
+  el('step-editor-list').innerHTML = html
 }
 
 function removeEditStep(si) {
