@@ -1177,6 +1177,9 @@
       <button class="ctrl-btn" onclick="showBulkComplete()">
         <span>⚡</span> 단계 일괄 완료
       </button>
+      <button class="ctrl-btn" onclick="showStepEditor()">
+        <span>✏️</span> 단계 수정/삭제
+      </button>
       <button class="ctrl-btn danger" onclick="confirmReset()">
         <span>🔄</span> 세션 초기화
       </button>
@@ -1235,7 +1238,13 @@
 
       <!-- Feedback panel -->
       <div class="panel-questions" id="panel-feedback" style="display:none;">
-        <div class="panel-title">피드백 모아보기</div>
+        <div class="panel-title" style="justify-content:space-between;">
+          피드백 모아보기
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm" onclick="exportFeedbackCSV()" style="font-size:12px;padding:6px 12px;">📊 구글시트로 내보내기</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteAllFeedback()" style="font-size:12px;padding:6px 12px;">🗑️ 전체 삭제</button>
+          </div>
+        </div>
         <div id="feedback-list"></div>
       </div>
     </div>
@@ -1526,8 +1535,9 @@ function renderMyQuestions() {
   list.innerHTML = '<div class="text-xs text-soft mt-8" style="margin-bottom:6px;">내 질문 내역</div>' +
     qs.map(([id, q]) => `
       <div class="my-q-item ${q.resolved ? 'resolved' : ''}">
-        ${q.resolved ? '✅ ' : '💬 '}${escHtml(q.text)}
-        ${q.resolved ? '<span class="text-xs text-green"> · 답변 완료</span>' : ''}
+        <div>${q.resolved ? '✅ ' : '💬 '}${escHtml(q.text)}</div>
+        ${q.reply ? `<div style="margin-top:6px;padding:6px 10px;background:#d1fae5;border-radius:6px;font-size:12px;color:#065f46;"><strong>강사 답변:</strong> ${escHtml(q.reply)}</div>` : ''}
+        ${q.resolved && !q.reply ? '<div class="text-xs text-green" style="margin-top:3px;">· 구두 답변 완료</div>' : ''}
       </div>
     `).join('')
 }
@@ -1986,21 +1996,66 @@ function renderQuestions(questions) {
     <div class="question-card ${q.resolved ? 'resolved' : ''}">
       <div class="qc-meta">
         <div class="qc-name">${escHtml(q.studentName)}</div>
-
         <div class="qc-time">${formatTime(q.timestamp)}</div>
       </div>
       <div class="qc-text">${escHtml(q.text)}</div>
-      <div class="qc-actions">
-        ${!q.resolved
-          ? `<button class="btn btn-success btn-xs" onclick="resolveQuestion('${qid}')">✓ 답변 완료</button>`
-          : `<span class="text-xs text-green">✅ 답변 완료</span>`
-        }
-      </div>
+
+      ${q.reply ? `
+        <div style="background:var(--green-soft);border-left:3px solid var(--green);border-radius:0 6px 6px 0;padding:8px 12px;margin-bottom:8px;font-size:13px;color:var(--green-dark);">
+          <div style="font-size:11px;font-weight:700;margin-bottom:3px;">강사 답변</div>
+          ${escHtml(q.reply)}
+        </div>
+      ` : ''}
+
+      ${!q.resolved ? `
+        <div class="qc-reply-box" id="reply-box-${qid}" style="display:none;margin-bottom:8px;">
+          <textarea id="reply-input-${qid}"
+            style="width:100%;padding:8px 10px;border:1.5px solid var(--blue);border-radius:6px;font-family:inherit;font-size:13px;resize:none;min-height:64px;outline:none;background:var(--blue-soft);"
+            placeholder="답변을 입력하세요..."></textarea>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn btn-success btn-xs" onclick="submitReply('${qid}')">답변하고 완료</button>
+            <button class="btn btn-ghost btn-xs" onclick="toggleReplyBox('${qid}')">취소</button>
+          </div>
+        </div>
+        <div class="qc-actions">
+          <button class="btn btn-outline btn-xs" onclick="toggleReplyBox('${qid}')">💬 댓글 답변</button>
+          <button class="btn btn-success btn-xs" onclick="resolveQuestion('${qid}')">✓ 구두 답변 완료</button>
+        </div>
+      ` : `
+        <div class="qc-actions">
+          <span class="text-xs text-green">✅ 답변 완료</span>
+        </div>
+      `}
     </div>
   `).join('')
 }
 
+function toggleReplyBox(qid) {
+  const box = el('reply-box-' + qid)
+  if (!box) return
+  const isVisible = box.style.display !== 'none'
+  box.style.display = isVisible ? 'none' : 'block'
+  if (!isVisible) {
+    const input = el('reply-input-' + qid)
+    if (input) input.focus()
+  }
+}
+
+async function submitReply(qid) {
+  const input = el('reply-input-' + qid)
+  const text = input ? input.value.trim() : ''
+  if (!text) { showToast('답변 내용을 입력해주세요.'); return }
+
+  try {
+    await sessionRef(`questions/${qid}`).update({ reply: text, resolved: true })
+    showToast('답변이 전달되었습니다.', 'success')
+  } catch(e) {
+    showToast('오류: ' + e.message, 'error')
+  }
+}
+
 function renderFeedbacks(feedbacks) {
+  APP.feedbacks = feedbacks  // cache for export
   const list = el('feedback-list')
   const entries = Object.entries(feedbacks).sort((a,b) => b[1].timestamp - a[1].timestamp)
 
@@ -2010,6 +2065,7 @@ function renderFeedbacks(feedbacks) {
   }
 
   const stars = ['', '😞', '😕', '😐', '😊', '🤩']
+  const ratingLabels = ['', '매우 불만족', '불만족', '보통', '만족', '매우 만족']
   const avg = entries.reduce((a, [,f]) => a + (f.rating || 0), 0) / entries.length
 
   list.innerHTML = `
@@ -2018,16 +2074,70 @@ function renderFeedbacks(feedbacks) {
       <div style="font-size:15px;font-weight:700;color:var(--purple);">평균 만족도 ${avg.toFixed(1)} / 5.0</div>
       <div style="font-size:12px;color:var(--ink-soft);">총 ${entries.length}개 피드백</div>
     </div>
-  ` + entries.map(([,f]) => `
-    <div class="feedback-card">
-      <div class="fc-header">
+  ` + entries.map(([fid, f]) => `
+    <div class="feedback-card" style="position:relative;">
+      <button onclick="deleteFeedback('${fid}')"
+        style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:none;background:transparent;color:#d1d5db;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;"
+        onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626'"
+        onmouseout="this.style.background='transparent';this.style.color='#d1d5db'"
+        title="이 피드백 삭제">✕</button>
+      <div class="fc-header" style="padding-right:28px;">
         <div class="fc-name">${escHtml(f.studentName)}</div>
-        <div class="fc-stars">${stars[f.rating] || ''}</div>
+        <div class="fc-stars">${stars[f.rating] || ''} <span style="font-size:11px;color:var(--ink-soft);">${ratingLabels[f.rating] || ''}</span></div>
       </div>
       ${f.good ? `<div class="fc-section"><div class="fc-label">👍 좋았던 점</div><div class="fc-text">${escHtml(f.good)}</div></div>` : ''}
       ${f.improve ? `<div class="fc-section"><div class="fc-label">💡 개선 제안</div><div class="fc-text">${escHtml(f.improve)}</div></div>` : ''}
+      <div style="font-size:11px;color:var(--ink-soft);margin-top:8px;">${formatTime(f.timestamp)}</div>
     </div>
   `).join('')
+}
+
+function deleteFeedback(fid) {
+  if (!confirm('이 피드백을 삭제할까요?')) return
+  sessionRef(`feedback/${fid}`).remove()
+    .then(() => showToast('삭제되었습니다.', 'success'))
+    .catch(e => showToast('오류: ' + e.message, 'error'))
+}
+
+function deleteAllFeedback() {
+  if (!confirm('피드백 전체를 삭제할까요? 되돌릴 수 없습니다.')) return
+  sessionRef('feedback').remove()
+    .then(() => showToast('전체 삭제되었습니다.', 'success'))
+    .catch(e => showToast('오류: ' + e.message, 'error'))
+}
+
+function exportFeedbackCSV() {
+  const feedbacks = APP.feedbacks || {}
+  const entries = Object.values(feedbacks).sort((a,b) => a.timestamp - b.timestamp)
+
+  if (entries.length === 0) { showToast('내보낼 피드백이 없습니다.'); return }
+
+  const ratingLabels = ['', '매우 불만족', '불만족', '보통', '만족', '매우 만족']
+  const sessionName = (APP.config && APP.config.name) || '세션'
+
+  // BOM for Korean encoding in Excel/Sheets
+  const BOM = '﻿'
+  const headers = ['이름', '만족도(숫자)', '만족도(텍스트)', '좋았던 점', '개선 제안', '제출 시각']
+
+  const rows = entries.map(f => [
+    f.studentName || '',
+    f.rating || '',
+    ratingLabels[f.rating] || '',
+    f.good || '',
+    f.improve || '',
+    f.timestamp ? new Date(f.timestamp).toLocaleString('ko-KR') : ''
+  ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+
+  const csv = BOM + [headers.join(','), ...rows].join('
+')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `피드백_${sessionName}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast('CSV 파일 다운로드 완료! 구글 드라이브에 업로드하세요.', 'success')
 }
 
 function resolveQuestion(qid) {
@@ -2106,6 +2216,117 @@ async function executeBulkComplete() {
 document.addEventListener('click', e => {
   const modal = el('bulk-modal')
   if (modal && e.target === modal) closeBulkModal()
+})
+
+function showStepEditor() {
+  const steps = (APP.config && APP.config.steps) || []
+  if (steps.length === 0) { showToast('단계가 없습니다.'); return }
+
+  // Deep clone for editing
+  APP.editingSteps = JSON.parse(JSON.stringify(steps))
+  renderStepEditorList()
+  el('step-editor-modal').style.display = 'flex'
+}
+
+function closeStepEditor() {
+  el('step-editor-modal').style.display = 'none'
+  APP.editingSteps = null
+}
+
+function renderStepEditorList() {
+  const steps = APP.editingSteps || []
+  el('step-editor-list').innerHTML = steps.map((step, si) => `
+    <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:14px;background:#fafafa;" id="edit-step-${si}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div style="width:26px;height:26px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${si+1}</div>
+        <input value="${escAttr(step.title)}"
+          oninput="APP.editingSteps[${si}].title=this.value"
+          style="flex:1;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:7px;font-family:inherit;font-size:14px;font-weight:600;outline:none;"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e5e7eb'"
+          placeholder="단계 제목">
+        <button onclick="removeEditStep(${si})"
+          style="padding:6px 10px;border-radius:7px;border:1.5px solid #fee2e2;background:#fff;color:#dc2626;font-size:12px;cursor:pointer;white-space:nowrap;"
+          onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fff'">
+          🗑️ 삭제
+        </button>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;">완료 버튼</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;" id="edit-tasks-${si}">
+        ${step.tasks.map((task, ti) => `
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input value="${escAttr(task.label)}"
+              oninput="APP.editingSteps[${si}].tasks[${ti}].label=this.value"
+              style="padding:5px 9px;border:1.5px solid #e5e7eb;border-radius:16px;font-family:inherit;font-size:12px;width:130px;outline:none;"
+              onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e5e7eb'">
+            ${step.tasks.length > 1 ? `
+              <button onclick="removeEditTask(${si},${ti})"
+                style="width:18px;height:18px;border-radius:50%;border:none;background:#fee2e2;color:#dc2626;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;">×</button>
+            ` : ''}
+          </div>
+        `).join('')}
+        <button onclick="addEditTask(${si})"
+          style="padding:4px 10px;border-radius:16px;border:1.5px dashed #d1d5db;background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;"
+          onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'"
+          onmouseout="this.style.borderColor='#d1d5db';this.style.color='#9ca3af'">
+          + 버튼 추가
+        </button>
+      </div>
+    </div>
+  `).join('') + `
+    <button onclick="addEditStep()"
+      style="width:100%;padding:10px;border:1.5px dashed #d1d5db;border-radius:10px;background:transparent;color:#9ca3af;font-family:inherit;font-size:13px;cursor:pointer;"
+      onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb'"
+      onmouseout="this.style.borderColor='#d1d5db';this.style.color='#9ca3af'">
+      + 단계 추가
+    </button>
+  `
+}
+
+function removeEditStep(si) {
+  if (APP.editingSteps.length <= 1) { showToast('단계는 최소 1개 이상이어야 합니다.'); return }
+  if (!confirm(`${si+1}단계를 삭제할까요? 수강생 완료 데이터도 영향을 받습니다.`)) return
+  APP.editingSteps.splice(si, 1)
+  renderStepEditorList()
+}
+
+function addEditStep() {
+  APP.editingSteps.push({ id: 'step_' + Date.now(), title: '', tasks: [{ id: 'task_' + Date.now(), label: '' }] })
+  renderStepEditorList()
+}
+
+function addEditTask(si) {
+  APP.editingSteps[si].tasks.push({ id: 'task_' + Date.now(), label: '' })
+  renderStepEditorList()
+}
+
+function removeEditTask(si, ti) {
+  if (APP.editingSteps[si].tasks.length <= 1) { showToast('버튼은 최소 1개 이상이어야 합니다.'); return }
+  APP.editingSteps[si].tasks.splice(ti, 1)
+  renderStepEditorList()
+}
+
+async function saveStepEdits() {
+  // Validate
+  for (const step of APP.editingSteps) {
+    if (!step.title.trim()) { showToast('모든 단계 제목을 입력해주세요.'); return }
+    for (const task of step.tasks) {
+      if (!task.label.trim()) { showToast('모든 버튼 레이블을 입력해주세요.'); return }
+    }
+  }
+
+  try {
+    await sessionRef('config/steps').set(APP.editingSteps)
+    APP.config.steps = APP.editingSteps
+    showToast('단계가 수정되었습니다.', 'success')
+    closeStepEditor()
+  } catch(e) {
+    showToast('저장 오류: ' + e.message, 'error')
+  }
+}
+
+document.addEventListener('click', e => {
+  const modal = el('step-editor-modal')
+  if (modal && e.target === modal) closeStepEditor()
 })
 
 function confirmReset() {
@@ -2210,6 +2431,21 @@ document.addEventListener('keydown', e => {
   }
 })
 </script>
+<!-- 단계 수정/삭제 모달 -->
+<div id="step-editor-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px;width:520px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="font-size:17px;font-weight:700;">✏️ 단계 수정/삭제</div>
+      <button onclick="closeStepEditor()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280;">✕</button>
+    </div>
+    <div id="step-editor-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveStepEdits()" style="flex:1;padding:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">변경사항 저장</button>
+      <button onclick="closeStepEditor()" style="padding:11px 20px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-family:inherit;font-size:14px;cursor:pointer;">취소</button>
+    </div>
+  </div>
+</div>
+
 <!-- 일괄 완료 모달 -->
 <div id="bulk-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:16px;padding:28px;width:440px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.2);">
