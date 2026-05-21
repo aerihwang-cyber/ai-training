@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 실습 교육 시스템</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --blue:#2563EB;--blue-d:#1D4ED8;--blue-pale:#EFF6FF;
+  --green:#059669;--green-pale:#ECFDF5;
+  --amber:#D97706;--amber-pale:#FFFBEB;
+  --red:#DC2626;--red-pale:#FEF2F2;
+  --purple:#7C3AED;
+  --teal:#0D7490;--teal-d:#0A5F78;--teal-pale:#E0F7FA;
+  --g50:#F8FAFC;--g100:#F1F5F9;--g200:#E2E8F0;--g300:#CBD5E1;
+  --g400:#94A3B8;--g500:#64748B;--g600:#475569;--g700:#334155;
+  --g800:#1E293B;--g900:#0F172A;
+  --sh:0 1px 3px rgba(0,0,0,0.1),0 1px 2px rgba(0,0,0,0.06);
+  --sh-lg:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -2px rgba(0,0,0,0.05);
+  --r:12px;--r-sm:8px;
+  --hh:52px;--nh:56px;--th:46px;
+  /* 역할별 색상 (기본=수강생) */
+  --role-hd:#2563EB;--role-hd-text:white;--role-accent:#2563EB;
+}
+/* 강사 모드 헤더/탭 색 */
+.inst-hd{background:#0B3954!important;}
+.inst-hd *{color:white!important;}
+.inst-hd .badge{color:white;}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:var(--g50);color:var(--g800);font-size:15px;line-height:1.5;}
+
+/* ── STRUCTURE ── */
+.fill-page{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem;}
+.wrap{max-width:520px;margin:0 auto;padding:1rem;width:100%;}
+.header{position:fixed;top:0;left:0;right:0;height:var(--hh);background:var(--blue);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+.header *{color:white;}
+.hd-l{display:flex;flex-direction:column;}
+.hd-name{font-size:0.88rem;font-weight:700;line-height:1.2;}
+.hd-sub{font-size:0.68rem;opacity:0.75;display:flex;align-items:center;gap:3px;}
+.tabs-bar{position:fixed;top:var(--hh);left:0;right:0;height:var(--th);background:white;border-bottom:2px solid var(--g200);display:flex;z-index:190;padding:0 0.5rem;}
+.tab{display:flex;align-items:center;gap:0.2rem;padding:0 0.6rem;font-size:0.76rem;font-weight:600;color:var(--g500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color 0.15s;white-space:nowrap;position:relative;}
+.tab.active{color:var(--teal);border-bottom-color:var(--teal);}
+.tab:hover:not(.active){color:var(--g700);}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:var(--nh);background:white;border-top:1.5px solid var(--g200);display:flex;z-index:300;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:0.6rem;font-weight:500;color:var(--g400);transition:color 0.15s;position:relative;-webkit-tap-highlight-color:transparent;user-select:none;}
+.nav-item.active{color:var(--blue);}
+.nav-icon{font-size:1.2rem;line-height:1;}
+.nav-badge{position:absolute;top:6px;right:calc(50% - 18px);background:var(--red);color:white;min-width:16px;height:16px;border-radius:8px;font-size:0.6rem;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+.nav-item.disabled{opacity:0.3;pointer-events:none;}
+.nav-item.ready .nav-icon{animation:pulse 1.5s ease-in-out infinite;}
+.fc{position:fixed;left:0;right:0;overflow-y:auto;}
+.fc-student{top:var(--hh);bottom:var(--nh);}
+.fc-inst{top:calc(var(--hh) + var(--th));bottom:0;}
+.fc-chat{overflow:hidden!important;}
+
+/* ── CARD ── */
+.card{background:white;border-radius:var(--r);padding:1.25rem;box-shadow:var(--sh);border:1px solid var(--g100);}
+
+/* ── FORMS ── */
+.field{margin-bottom:0.875rem;}
+.field label{display:block;font-size:0.73rem;font-weight:600;color:var(--g600);margin-bottom:0.28rem;}
+.inp{width:100%;padding:0.55rem 0.8rem;border:1.5px solid var(--g200);border-radius:var(--r-sm);font-size:0.875rem;font-family:inherit;color:var(--g800);background:white;transition:border-color 0.15s,box-shadow 0.15s;}
+.inp:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,0.1);}
+.inp::placeholder{color:var(--g300);}
+textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
+.inp-room{font-size:1.15rem;font-weight:700;text-align:center;color:var(--blue);letter-spacing:1px;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:0.3rem;padding:0.55rem 1.1rem;border-radius:var(--r-sm);border:none;font-size:0.84rem;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit;white-space:nowrap;}
+.btn:active{transform:scale(0.97);}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+.btn-full{width:100%;}
+.btn-lg{padding:0.68rem 1.5rem;font-size:0.9rem;border-radius:10px;}
+.btn-sm{padding:0.26rem 0.62rem;font-size:0.73rem;border-radius:6px;}
+.btn-p{background:var(--blue);color:white;}
+.btn-p:hover:not(:disabled){background:var(--blue-d);}
+.btn-t{background:var(--teal);color:white;}
+.btn-t:hover:not(:disabled){background:var(--teal-d);}
+.btn-g{background:var(--g100);color:var(--g700);}
+.btn-g:hover{background:var(--g200);}
+.btn-s{background:var(--green);color:white;}
+.btn-s:hover{background:#047857;}
+.btn-d{background:var(--red);color:white;}
+.btn-d:hover{background:#B91C1C;}
+.btn-o{background:white;color:var(--g700);border:1.5px solid var(--g200);}
+.btn-o:hover{background:var(--g50);}
+.btn-ai{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;box-shadow:0 2px 8px rgba(124,58,237,0.3);}
+.btn-ai:hover:not(:disabled){box-shadow:0 4px 12px rgba(124,58,237,0.4);}
+
+/* ── TASK / STEP ── */
+.step-card{background:white;border-radius:var(--r);border:1.5px solid var(--g100);overflow:hidden;margin:0.5rem 0.75rem;}
+.step-head{padding:0.55rem 0.875rem;background:var(--g50);border-bottom:1px solid var(--g100);display:flex;align-items:center;gap:0.4rem;}
+.step-title{font-size:0.84rem;font-weight:700;color:var(--g800);flex:1;}
+.step-body{padding:0.4rem 0.875rem;}
+.task-row{display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0;border-bottom:1px solid var(--g100);}
+.task-row:last-child{border-bottom:none;}
+.task-lbl{font-size:0.81rem;color:var(--g700);flex:1;line-height:1.4;}
+.task-lbl.done{text-decoration:line-through;color:var(--g300);}
+.tbtn-done{background:var(--green-pale);color:var(--green);border:1px solid #A7F3D0;padding:0.22rem 0.6rem;border-radius:6px;font-size:0.71rem;font-weight:600;}
+.tbtn-todo{background:var(--blue);color:white;border:none;padding:0.24rem 0.62rem;border-radius:6px;font-size:0.71rem;font-weight:600;cursor:pointer;transition:all 0.15s;}
+.tbtn-todo:hover{background:var(--blue-d);}
+.tbtn-todo:active{transform:scale(0.94);}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;padding:0.16rem 0.48rem;border-radius:20px;font-size:0.68rem;font-weight:600;white-space:nowrap;}
+.bg-green{background:var(--green-pale);color:var(--green);border:1px solid #A7F3D0;}
+.bg-blue{background:var(--blue-pale);color:var(--blue);border:1px solid #BFDBFE;}
+.bg-amber{background:var(--amber-pale);color:var(--amber);border:1px solid #FDE68A;}
+.bg-red{background:var(--red-pale);color:var(--red);border:1px solid #FECACA;}
+.bg-gray{background:var(--g100);color:var(--g500);border:1px solid var(--g200);}
+.bg-teal{background:var(--teal-pale);color:var(--teal);border:1px solid #80DEEA;}
+
+/* ── ALERTS ── */
+.alert{padding:0.6rem 0.875rem;border-radius:var(--r-sm);font-size:0.79rem;line-height:1.55;}
+.al-blue{background:var(--blue-pale);color:#1D4ED8;border:1px solid #BFDBFE;}
+.al-amber{background:var(--amber-pale);color:#78350F;border:1px solid #FDE68A;}
+.al-green{background:var(--green-pale);color:#065F46;border:1px solid #A7F3D0;}
+.al-teal{background:var(--teal-pale);color:var(--teal-d);border:1px solid #80DEEA;}
+
+/* ── CHAT ── */
+.chat-wrap{display:flex;flex-direction:column;height:100%;}
+.chat-topbar{display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.75rem;border-bottom:1px solid var(--g200);background:var(--g50);flex-shrink:0;}
+.chat-msgs{flex:1;overflow-y:auto;padding:0.625rem;display:flex;flex-direction:column;gap:0.3rem;}
+.chat-input-bar{flex-shrink:0;padding:0.4rem 0.5rem;border-top:1px solid var(--g200);background:white;display:flex;gap:0.35rem;align-items:flex-end;}
+.msg-wrap{display:flex;flex-direction:column;max-width:82%;}
+.msg-wrap.me{align-self:flex-end;}
+.msg-wrap.other{align-self:flex-start;}
+.msg-sender{font-size:0.65rem;color:var(--g400);margin-bottom:2px;padding-left:2px;}
+.msg-sender.from-inst{color:var(--teal);font-weight:700;}
+.msg-bbl{padding:0.45rem 0.7rem;border-radius:12px;font-size:0.84rem;line-height:1.5;word-break:break-word;}
+.msg-wrap.me .msg-bbl{background:var(--blue);color:white;border-bottom-right-radius:3px;}
+.msg-bbl.from-other{background:var(--g100);color:var(--g800);border-bottom-left-radius:3px;}
+.msg-bbl.from-inst{background:#E0F7FA;color:var(--g800);border:1px solid #80DEEA;border-bottom-left-radius:3px;}
+.msg-bbl.inst-sent{background:var(--teal);color:white;border-bottom-right-radius:3px;}
+.msg-bbl a{color:inherit;text-decoration:underline;opacity:0.9;}
+.msg-foot{display:flex;align-items:center;gap:0.25rem;margin-top:2px;}
+.msg-time{font-size:0.6rem;color:var(--g400);}
+.msg-wrap.me .msg-time{color:rgba(255,255,255,0.55);}
+.copy-btn{background:none;border:none;cursor:pointer;font-size:0.62rem;color:var(--g400);padding:1px 4px;border-radius:4px;opacity:0;transition:opacity 0.15s;}
+.msg-wrap:hover .copy-btn{opacity:1;}
+.msg-wrap.me .copy-btn{color:rgba(255,255,255,0.6);}
+.link-card{display:flex;gap:0.5rem;padding:0.45rem 0.6rem;background:white;border:1px solid var(--g200);border-radius:8px;text-decoration:none;color:inherit;transition:border-color 0.15s;margin-top:0.15rem;}
+.link-card:hover{border-color:var(--blue);}
+.link-card-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px;}
+.link-card-title{font-size:0.77rem;font-weight:700;color:var(--blue);}
+.link-card-url{font-size:0.62rem;color:var(--g400);word-break:break-all;margin-top:2px;}
+.msg-img{max-width:200px;max-height:160px;border-radius:8px;cursor:pointer;display:block;}
+.msg-sys{text-align:center;font-size:0.69rem;color:var(--g400);padding:0.2rem;margin:0.2rem 0;}
+.attach-btn{background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0.2rem;color:var(--g400);flex-shrink:0;line-height:1;height:36px;display:flex;align-items:center;transition:color 0.15s;}
+.attach-btn:hover{color:var(--blue);}
+
+/* ── PROGRESS TABLE ── */
+.prog-tbl{width:100%;border-collapse:collapse;font-size:0.74rem;}
+.prog-tbl th,.prog-tbl td{padding:0.38rem 0.42rem;border:1px solid var(--g200);text-align:center;}
+.prog-tbl th{background:var(--g50);font-weight:600;color:var(--g600);font-size:0.67rem;}
+.prog-tbl td:first-child{text-align:left;min-width:80px;}
+.prog-tbl td:first-child strong{display:block;font-size:0.77rem;}
+.prog-tbl td:first-child span{font-size:0.63rem;color:var(--g400);}
+.pc-done{background:#DCFCE7;color:#15803D;font-weight:700;}
+.pc-part{background:#FEF9C3;color:#A16207;font-weight:600;}
+.pc-none{background:var(--g50);color:var(--g400);}
+.bulk-btn{display:block;width:100%;margin-top:3px;padding:2px 4px;font-size:0.6rem;font-weight:600;color:var(--teal);background:var(--teal-pale);border:none;border-radius:4px;cursor:pointer;white-space:nowrap;}
+.bulk-btn:hover{background:#B2EBF2;}
+.cell-click{cursor:pointer;}
+.cell-click:hover{opacity:0.75;}
+
+/* ── STEP CONFIG ── */
+.step-cfg{background:var(--g50);border:1.5px solid var(--g200);border-radius:var(--r-sm);padding:0.875rem;margin-bottom:0.625rem;}
+.step-cfg-head{display:flex;gap:0.4rem;align-items:center;margin-bottom:0.5rem;}
+.inp-mode-tabs{display:flex;gap:0.3rem;margin-bottom:0.6rem;}
+.inp-mode-tab{flex:1;padding:0.36rem 0.4rem;border-radius:var(--r-sm);border:1.5px solid var(--g200);font-size:0.72rem;font-weight:600;cursor:pointer;background:white;color:var(--g500);text-align:center;transition:all 0.15s;font-family:inherit;}
+.inp-mode-tab.active{background:var(--blue-pale);color:var(--blue);border-color:#93C5FD;}
+.file-drop{border:2px dashed var(--g200);border-radius:var(--r-sm);padding:1.25rem;text-align:center;cursor:pointer;transition:all 0.2s;background:white;}
+.file-drop:hover,.file-drop.over{border-color:var(--blue);background:var(--blue-pale);}
+.file-drop.loaded{border-color:var(--green);background:var(--green-pale);}
+
+/* ── MISC ── */
+.divider{display:flex;align-items:center;gap:0.6rem;color:var(--g400);font-size:0.75rem;margin:0.875rem 0;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--g200);}
+.brand-mark{width:52px;height:52px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin:0 auto 0.75rem;box-shadow:0 4px 12px rgba(37,99,235,0.3);}
+.inst-mark{background:linear-gradient(135deg,#0B3954,#0D7490)!important;}
+.stars{display:flex;gap:0.4rem;justify-content:center;margin:0.75rem 0;}
+.star-btn{font-size:1.7rem;cursor:pointer;transition:transform 0.1s;opacity:0.2;border:none;background:none;}
+.star-btn.lit{opacity:1;}
+.all-done-banner{background:linear-gradient(135deg,var(--green),#10B981);color:white;padding:0.55rem 0.875rem;border-radius:var(--r-sm);margin-bottom:0.4rem;text-align:center;font-size:0.78rem;font-weight:600;}
+.notif-dot{display:inline-flex;align-items:center;justify-content:center;background:var(--red);color:white;min-width:15px;height:15px;border-radius:8px;font-size:0.58rem;font-weight:700;padding:0 3px;margin-left:2px;}
+.role-pill{display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:2px 8px;font-size:0.65rem;font-weight:600;}
+.sync-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.sync-live{background:#4ADE80;box-shadow:0 0 0 2px rgba(74,222,128,0.3);}
+.sync-demo{background:#FCD34D;}
+.q-item{background:white;border-radius:var(--r-sm);border:1px solid var(--g200);border-left:3px solid var(--blue);padding:0.7rem;margin-bottom:0.4rem;}
+.q-item.answered{border-left-color:var(--green);opacity:0.65;}
+.q-meta{font-size:0.68rem;color:var(--g400);margin-bottom:0.2rem;display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;}
+.q-meta strong{color:var(--g700);font-size:0.75rem;}
+.q-text{font-size:0.83rem;color:var(--g800);line-height:1.5;}
+.ai-spin{display:flex;align-items:center;gap:0.5rem;padding:0.7rem;background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #BFDBFE;border-radius:var(--r-sm);font-size:0.81rem;color:var(--blue);}
+.ai-dot{width:7px;height:7px;background:var(--blue);border-radius:50%;animation:pulse 0.8s ease-in-out infinite;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:600;padding:1rem;}
+.modal{background:white;border-radius:var(--r);padding:1.375rem;max-width:420px;width:100%;box-shadow:var(--sh-lg);}
+.img-preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:800;cursor:pointer;}
+.img-preview-overlay img{max-width:95vw;max-height:90vh;border-radius:8px;}
+.toast{position:fixed;bottom:calc(var(--nh) + 0.75rem);left:50%;transform:translateX(-50%);background:var(--g900);color:white;padding:0.48rem 1rem;border-radius:8px;font-size:0.79rem;z-index:9999;box-shadow:var(--sh-lg);white-space:nowrap;animation:toastIn 0.2s ease;}
+.spinner{width:22px;height:22px;border:2.5px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto;}
+
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.7;}}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(6px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+.fade-in{animation:fadeIn 0.2s ease;}
+@media(max-width:420px){
+  .card{padding:1rem;}
+  .step-card{margin:0.35rem 0.5rem;}
+  .tab{padding:0 0.4rem;font-size:0.71rem;}
+}
+</style>
+</head>
+<body>
+<div id="app"><div class="fill-page"><div style="text-align:center;"><div class="spinner"></div></div></div></div>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getDatabase,ref,set,get,onValue,push,update}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ╔═══════════════════════════════════════════════════════════╗
+// ║  ⚙️  FIREBASE 설정  —  본인 프로젝트 값으로 교체하세요    ║
+// ╚═══════════════════════════════════════════════════════════╝
+const FB_CFG={
+  apiKey:"AIzaSyBT7UP9g6XS_kuxbvnhC__sDM5ElL9cASg",
+  authDomain:"ai-training-3fc2c.firebaseapp.com",
+  databaseURL:"https://ai-training-3fc2c-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"ai-training-3fc2c",
+  storageBucket:"ai-training-3fc2c.firebasestorage.app",
+  messagingSenderId:"627256091806",
+  appId:"1:627256091806:web:8821a46323053dc039078f"
+};
+
+// ╔═══════════════════════════════════════════════════════════╗
+// ║  🔑 Anthropic API Key  —  AI 자동생성 기능에 필요          ║
+// ║  https://console.anthropic.com 에서 발급                  ║
+// ╚═══════════════════════════════════════════════════════════╝
+const ANTHROPIC_KEY="YOUR_ANTHROPIC_API_KEY";
+
+// ╔══════════════════════╗
+// ║  강사 비밀번호        ║
+// ╚══════════════════════╝
+const INST_PW="ccc2025";
+
+// ── Firebase 초기화 ──
+const IS_DEMO=FB_CFG.apiKey==="YOUR_API_KEY";
+let db;
+if(!IS_DEMO){try{const a=initializeApp(FB_CFG);db=getDatabase(a);}catch(e){console.error(e);}}
+
+// ── 상태 ──
+const S={
+  view:'home',roomKey:null,roomName:null,student:null,
+  sTab:'practice',iTab:'progress',
+  sessionData:null,
+  students:{},questions:{},chatMsgs:{},feedback:{},
+  chatSeenCount:0,chatUnread:0,
+  editSteps:null,rating:0,fbDone:false,
+  inputMode:'text',pdfData:null,pdfName:'',
+  _unsubs:[],
+  _demo:{students:{},questions:{},chat:{},feedback:{},config:null}
+};
+
+const DEFAULT_STEPS=[
+  {id:'s1',name:'실습 1: AI 도구 접속하기',tasks:['ChatGPT 사이트 접속하기','계정 로그인 확인하기','기본 화면 둘러보기']},
+  {id:'s2',name:'실습 2: 첫 번째 프롬프트 작성',tasks:['주제 정하기','프롬프트 입력하기','결과 확인하고 메모하기','개선 프롬프트 작성하기']},
+  {id:'s3',name:'실습 3: 결과 활용하기',tasks:['결과물 정리하기','나만의 아이디어 더하기']}
+];
+
+// ── 유틸 ──
+function genId(){return '_'+Math.random().toString(36).slice(2,9);}
+function ago(ts){const d=Date.now()-ts;if(d<60000)return'방금';if(d<3600000)return Math.floor(d/60000)+'분 전';return Math.floor(d/3600000)+'시간 전';}
+function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function linkify(t){return eh(t).replace(/(https?:\/\/[^\s<>"&]+)/g,u=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`);}
+function roomKey(name){return(name||'').trim().replace(/[.$#[\]/]/g,'').replace(/\s+/g,'_').slice(0,40)||'room';}
+
+function toast(msg,dur=2500){
+  document.querySelector('.toast')?.remove();
+  const el=Object.assign(document.createElement('div'),{className:'toast',textContent:msg});
+  document.body.appendChild(el);setTimeout(()=>el?.remove(),dur);
+}
+
+document.addEventListener('click',e=>{
+  const btn=e.target.closest('[data-copy]');
+  if(!btn)return;
+  const text=btn.getAttribute('data-copy');
+  navigator.clipboard.writeText(text).then(()=>toast('복사됨! ✓')).catch(()=>{
+    const ta=Object.assign(document.createElement('textarea'),{value:text});
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('복사됨! ✓');
+  });
+});
+
+// ── Firebase helpers (v9 unsubscribe 방식) ──
+function dbListen(path,cb){
+  if(IS_DEMO)return;
+  const unsub=onValue(ref(db,path),cb);
+  S._unsubs.push(unsub);
+}
+function clearListeners(){S._unsubs.forEach(fn=>fn());S._unsubs=[];}
+async function dbSet(p,d){if(!IS_DEMO)return set(ref(db,p),d);}
+async function dbGet(p){if(IS_DEMO)return{exists:()=>false,val:()=>null};return get(ref(db,p));}
+async function dbPush(p,d){if(!IS_DEMO)return push(ref(db,p),d);}
+async function dbUpd(p,d){if(!IS_DEMO)return update(ref(db,p),d);}
+async function dbMultiUpd(upds){if(!IS_DEMO)return update(ref(db),upds);}
+
+// ══════════════════════════════════
+//  AI 자동 생성
+// ══════════════════════════════════
+const AI_SYS=`당신은 AI 실습 교육 전문가입니다. 강의 자료를 분석하여 수강생들이 수행하는 실습 단계와 완료 체크 항목을 JSON으로 추출하세요.
+규칙: 실습 가능한 구체적 단계 3~6개, 각 tasks는 완료 버튼을 누를 수 있는 명확한 행동 2~5개, JSON만 반환(마크다운 없이), 한국어 작성.
+형식: {"title":"교육 제목","steps":[{"id":"step_1","name":"단계명","tasks":["항목1","항목2"]}]}`;
+
+async function aiGenerateSteps(input){
+  const hasKey=ANTHROPIC_KEY&&ANTHROPIC_KEY!=="YOUR_ANTHROPIC_API_KEY";
+  if(!hasKey)throw new Error('Anthropic API Key가 설정되지 않았습니다. 파일 상단 ANTHROPIC_KEY를 입력해주세요.');
+  let messages;
+  if(input.type==='pdf'){
+    messages=[{role:"user",content:[
+      {type:"document",source:{type:"base64",media_type:"application/pdf",data:input.base64}},
+      {type:"text",text:AI_SYS}
+    ]}];
+  }else{
+    messages=[{role:"user",content:`${AI_SYS}\n\n강의 내용:\n${input.text}`}];
+  }
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-ipc":"true"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages})
+  });
+  if(!res.ok){const e=await res.text();throw new Error(`API 오류 (${res.status}): ${e.slice(0,100)}`);}
+  const data=await res.json();
+  const raw=data.content?.[0]?.text||'';
+  return JSON.parse(raw.replace(/```json|```/g,'').trim());
+}
+
+// 이미지 압축 (canvas)
+async function compressImg(file){
+  return new Promise((resolve,reject)=>{
+    if(file.size>5*1024*1024){reject(new Error('파일이 5MB를 초과합니다'));return;}
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const MAX=720,canvas=document.createElement('canvas');
+      let w=img.width,h=img.height;
+      if(w>MAX||h>MAX){const r=Math.min(MAX/w,MAX/h);w=Math.round(w*r);h=Math.round(h*r);}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      let q=0.8;
+      const compress=()=>{
+        const d=canvas.toDataURL('image/jpeg',q);
+        if(d.length>300000&&q>0.2){q-=0.15;compress();}
+        else resolve(d);
+      };
+      compress();
+    };
+    img.onerror=()=>reject(new Error('이미지 읽기 실패'));
+    img.src=url;
+  });
+}
+
+// ══════════════════════════════════
+//  VIEW: HOME
+// ══════════════════════════════════
+function viewHome(){
+  clearListeners();S.view='home';S.student=null;S.fbDone=false;S.roomKey=null;S.roomName=null;
+  document.getElementById('app').innerHTML=`
+    <div class="fill-page">
+      <div class="wrap">
+        ${IS_DEMO?'<div class="alert al-amber" style="margin-bottom:0.875rem;">⚠️ <strong>데모 모드</strong> — Firebase 설정 교체 시 다기기 실시간 연동됩니다.</div>':''}
+        <div class="card">
+          <div class="brand-mark">🎓</div>
+          <h1 style="text-align:center;font-size:1.15rem;font-weight:700;margin-bottom:0.2rem;">AI 실습 교육 시스템</h1>
+          <p style="text-align:center;color:var(--g400);font-size:0.78rem;margin-bottom:1.25rem;">강사님께 받은 방 이름을 입력하세요</p>
+          <div class="field">
+            <label>방 이름</label>
+            <input id="roomInp" class="inp inp-room" placeholder="예: AI실습5월"
+              onkeydown="if(event.key==='Enter')window._joinRoom()">
+          </div>
+          <button class="btn btn-p btn-full btn-lg" onclick="window._joinRoom()">📚 수강생으로 참여</button>
+          <div class="divider">또는</div>
+          <button class="btn btn-o btn-full" onclick="window._gotoInstLogin()">👨‍🏫 강사로 로그인</button>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(()=>document.getElementById('roomInp')?.focus(),80);
+}
+
+window._joinRoom=async function(){
+  const raw=document.getElementById('roomInp')?.value?.trim();
+  if(!raw){toast('방 이름을 입력해주세요');return;}
+  const key=roomKey(raw);
+  if(!key){toast('방 이름을 다시 입력해주세요');return;}
+  if(IS_DEMO){
+    S.roomKey=key;S.roomName=raw;
+    S._demo.config=S._demo.config||{title:'AI 실습 교육 (데모)',steps:DEFAULT_STEPS,status:'active'};
+    viewStudentReg(S._demo.config);return;
+  }
+  try{
+    const snap=await dbGet(`sessions/${key}/config`);
+    if(!snap.exists()){toast(`"${raw}" 방을 찾을 수 없어요. 방 이름을 확인해주세요.`);return;}
+    const cfg=snap.val();
+    if(cfg.status==='ended'){toast('이미 종료된 세션입니다');return;}
+    S.roomKey=key;S.roomName=raw;viewStudentReg(cfg);
+  }catch(e){toast('연결 오류. Firebase 설정을 확인해주세요.');}
+};
+
+// ══════════════════════════════════
+//  VIEW: STUDENT REGISTER
+// ══════════════════════════════════
+function viewStudentReg(cfg){
+  S.view='student-reg';
+  document.getElementById('app').innerHTML=`
+    <div class="fill-page">
+      <div class="wrap">
+        <div class="card">
+          <p style="font-size:0.68rem;color:var(--g400);margin-bottom:0.12rem;">방: <strong style="color:var(--blue);">${eh(S.roomName)}</strong></p>
+          <h2 style="font-size:1.05rem;font-weight:700;margin-bottom:1.1rem;">${eh(cfg.title||'AI 실습 교육')}</h2>
+          <div class="field">
+            <label>이름 *</label>
+            <input id="nameInp" class="inp" placeholder="실명을 입력하세요"
+              onkeydown="if(event.key==='Enter')document.getElementById('orgInp').focus()">
+          </div>
+          <div class="field">
+            <label>소속 *</label>
+            <input id="orgInp" class="inp" placeholder="예: OO대학교, OO팀"
+              onkeydown="if(event.key==='Enter')window._regStudent()">
+          </div>
+          <button class="btn btn-p btn-full btn-lg" style="margin-top:0.2rem;" onclick="window._regStudent()">✅ 참여 시작하기</button>
+          <button class="btn btn-g btn-full btn-sm" style="margin-top:0.4rem;" onclick="viewHome()">← 뒤로</button>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(()=>document.getElementById('nameInp')?.focus(),80);
+}
+
+window._regStudent=async function(){
+  const name=document.getElementById('nameInp')?.value?.trim();
+  const org=document.getElementById('orgInp')?.value?.trim();
+  if(!name){toast('이름을 입력해주세요');return;}
+  if(!org){toast('소속을 입력해주세요');return;}
+  const sid=genId();
+  S.student={id:sid,name,org,_progress:{},_joinedAt:Date.now()};
+  S.chatSeenCount=0;
+  if(IS_DEMO){S._demo.students[sid]={name,org,joinedAt:Date.now(),progress:{}};viewStudentSession();return;}
+  try{
+    await dbSet(`sessions/${S.roomKey}/students/${sid}`,{name,org,joinedAt:Date.now(),progress:{}});
+    viewStudentSession();
+  }catch(e){toast('참여 중 오류가 발생했어요.');}
+};
+
+// ══════════════════════════════════
+//  VIEW: STUDENT SESSION
+// ══════════════════════════════════
+async function viewStudentSession(){
+  clearListeners();
+  S.view='student';S.sTab='practice';
+  if(!IS_DEMO){
+    const snap=await dbGet(`sessions/${S.roomKey}/config`);
+    S.sessionData=snap.val()||{};
+    // 실습 진행도
+    dbListen(`sessions/${S.roomKey}/students/${S.student.id}/progress`,sn=>{
+      S.student._progress=sn.val()||{};
+      if(S.sTab==='practice')_sRenderContent();
+    });
+    // 채팅
+    dbListen(`sessions/${S.roomKey}/chat`,sn=>{
+      S.chatMsgs=sn.val()||{};
+      const total=Object.keys(S.chatMsgs).length;
+      if(S.sTab==='chat'){S.chatSeenCount=total;S.chatUnread=0;_renderChat('student');}
+      else{S.chatUnread=Math.max(0,total-S.chatSeenCount);_updateNavBadge();}
+    });
+    // 질문
+    dbListen(`sessions/${S.roomKey}/questions`,sn=>{
+      S.questions=sn.val()||{};
+      if(S.sTab==='question')_sRenderContent();
+    });
+    // 세션 상태
+    dbListen(`sessions/${S.roomKey}/config/status`,sn=>{
+      if(sn.val()==='ended'){
+        if(!S.sessionData)S.sessionData={};
+        S.sessionData.status='ended';
+        if(S.sTab!=='feedback'){
+          S.sTab='feedback';_sRenderFull();
+          toast('📝 교육이 종료되었습니다. 피드백을 남겨주세요!',4000);
+        }
+      }
+    });
+  }else{
+    S.sessionData=S._demo.config||DEFAULT_STEPS;
+    S.questions=S._demo.questions;
+    S.chatMsgs=S._demo.chat||{};
+  }
+  _sRenderFull();
+}
+
+function _sRenderFull(){
+  const cfg=S.sessionData||{};
+  const steps=cfg.steps||[];
+  const prog=S.student?._progress||{};
+  let total=0,done=0;
+  steps.forEach((step,si)=>{const tc=step.tasks?.length||0;total+=tc;done+=Object.values(prog[si]||{}).filter(Boolean).length;});
+  const isEnded=cfg.status==='ended';
+
+  document.getElementById('app').innerHTML=`
+    <div class="header">
+      <div class="hd-l">
+        <span class="hd-name">${eh(cfg.title||'AI 실습 교육')}</span>
+        <span class="hd-sub"><span class="sync-dot ${IS_DEMO?'sync-demo':'sync-live'}"></span>${IS_DEMO?'데모':'실시간'} &nbsp;·&nbsp; ${eh(S.student?.name||'')} (${eh(S.student?.org||'')})</span>
+      </div>
+      <span id="progBadge" class="badge ${done===total&&total>0?'bg-green':'bg-blue'}">${done}/${total}</span>
+    </div>
+    <div id="sContent" class="fc fc-student ${S.sTab==='chat'?'fc-chat':''}"></div>
+    <div class="bottom-nav">
+      <div class="nav-item ${S.sTab==='practice'?'active':''}" onclick="window._sTab('practice')">
+        <span class="nav-icon">📋</span><span>실습</span>
+      </div>
+      <div class="nav-item ${S.sTab==='chat'?'active':''}" id="chatNavItem" onclick="window._sTab('chat')">
+        <span class="nav-icon">💬</span><span>채팅</span>
+        ${S.chatUnread>0?`<span class="nav-badge">${S.chatUnread}</span>`:''}
+      </div>
+      <div class="nav-item ${S.sTab==='question'?'active':''}" onclick="window._sTab('question')">
+        <span class="nav-icon">❓</span><span>질문</span>
+      </div>
+      <div class="nav-item ${S.sTab==='feedback'?'active':''} ${!isEnded?'disabled':''} ${isEnded&&S.sTab!=='feedback'?'ready':''}"
+           id="fbNavItem" onclick="window._sTab('feedback')">
+        <span class="nav-icon">📝</span><span>피드백</span>
+      </div>
+    </div>`;
+  _sRenderContent();
+}
+
+function _sRenderContent(){
+  const el=document.getElementById('sContent');
+  if(!el)return;
+  el.className=`fc fc-student ${S.sTab==='chat'?'fc-chat':''}`;
+
+  if(S.sTab==='practice'){
+    const cfg=S.sessionData||{};
+    const steps=cfg.steps||[];
+    const prog=S.student?._progress||{};
+    let total=0,done=0;
+    const html=steps.map((step,si)=>{
+      const tc=step.tasks?.length||0;total+=tc;
+      const cnt=Object.values(prog[si]||{}).filter(Boolean).length;done+=cnt;
+      const allDone=cnt===tc;
+      return `<div class="step-card fade-in">
+        <div class="step-head">
+          <span class="step-title">${eh(step.name)}</span>
+          <span class="badge ${allDone?'bg-green':cnt>0?'bg-amber':'bg-gray'}">${cnt}/${tc}</span>
+        </div>
+        <div class="step-body">
+          ${(step.tasks||[]).map((task,ti)=>{
+            const isDone=!!prog[si]?.[ti];
+            return `<div class="task-row">
+              <span class="task-lbl${isDone?' done':''}">${eh(task)}</span>
+              ${isDone?'<span class="tbtn-done">✅ 완료</span>':`<button class="tbtn-todo" onclick="window._completeTask(${si},${ti})">완료</button>`}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    const pb=document.getElementById('progBadge');
+    if(pb){pb.textContent=`${done}/${total}`;pb.className=`badge ${done===total&&total>0?'bg-green':'bg-blue'}`;}
+    el.innerHTML=`<div style="padding:0.5rem 0 1.25rem;">${html||'<div class="alert al-blue" style="margin:1rem;">실습 단계를 준비 중입니다.</div>'}</div>`;
+
+  }else if(S.sTab==='chat'){
+    _renderChat('student');
+
+  }else if(S.sTab==='question'){
+    const myQs=Object.entries(IS_DEMO?S._demo.questions:S.questions)
+      .filter(([,q])=>q.studentId===S.student?.id).sort((a,b)=>a[1].timestamp-b[1].timestamp);
+    el.innerHTML=`<div style="padding:0.75rem;">
+      <div class="card">
+        <h3 style="font-size:0.84rem;font-weight:700;margin-bottom:0.3rem;">❓ 강사에게 질문하기</h3>
+        <p style="font-size:0.72rem;color:var(--g400);margin-bottom:0.55rem;">강사님께 비공개로 전달됩니다</p>
+        <textarea id="qInp" class="inp" placeholder="질문 내용을 입력하세요..."></textarea>
+        <button class="btn btn-p btn-full" style="margin-top:0.35rem;" onclick="window._sendQ()">📨 질문 보내기</button>
+      </div>
+      ${myQs.length>0?`<div style="margin-top:0.75rem;">
+        <p style="font-size:0.71rem;font-weight:600;color:var(--g500);margin-bottom:0.3rem;">내 질문 내역</p>
+        ${myQs.map(([,q])=>`<div class="q-item ${q.answered?'answered':''}">
+          <div class="q-meta">${ago(q.timestamp)} ${q.answered?'<span class="badge bg-green">답변완료</span>':''}</div>
+          <div class="q-text">${eh(q.text)}</div>
+        </div>`).join('')}
+      </div>`:''}
+    </div>`;
+
+  }else if(S.sTab==='feedback'){
+    _renderFeedbackForm(el);
+  }
+}
+
+function _renderFeedbackForm(el){
+  if(S.fbDone){el.innerHTML=`<div class="fill-page"><div style="text-align:center;padding:2rem;"><div style="font-size:3rem;margin-bottom:0.5rem;">🎉</div><h2 style="font-weight:700;">제출 완료!</h2><p style="color:var(--g400);font-size:0.875rem;margin-top:0.25rem;">오늘도 수고 많으셨어요</p></div></div>`;return;}
+  if(S.sessionData?.status!=='ended'){el.innerHTML=`<div class="fill-page"><div style="text-align:center;padding:2rem;color:var(--g400);font-size:0.84rem;">교육이 종료되면<br>피드백을 남길 수 있어요</div></div>`;return;}
+  S.rating=0;
+  el.innerHTML=`<div style="padding:0.75rem;">
+    <div class="card" style="text-align:center;">
+      <div style="font-size:2.5rem;margin-bottom:0.5rem;">🙏</div>
+      <h2 style="font-size:1.05rem;font-weight:700;margin-bottom:0.2rem;">수고하셨습니다!</h2>
+      <p style="color:var(--g400);font-size:0.78rem;margin-bottom:1rem;">오늘 실습에 대한 의견을 나눠주세요</p>
+      <p style="font-size:0.78rem;font-weight:600;color:var(--g600);margin-bottom:0.25rem;">만족도</p>
+      <div class="stars">${[1,2,3,4,5].map(v=>`<button class="star-btn" onclick="window._setStar(${v})">⭐</button>`).join('')}</div>
+      <div class="field" style="text-align:left;margin-top:0.6rem;">
+        <label>소감 / 개선 제안 (선택)</label>
+        <textarea id="fbInp" class="inp" placeholder="오늘 교육에 대한 느낌이나 개선 제안을 자유롭게..."></textarea>
+      </div>
+      <button class="btn btn-s btn-full btn-lg" onclick="window._submitFb()">✅ 피드백 제출하기</button>
+    </div>
+  </div>`;
+}
+
+window._sTab=tab=>{
+  S.sTab=tab;
+  if(tab==='chat'){S.chatSeenCount=Object.keys(IS_DEMO?S._demo.chat||{}:S.chatMsgs).length;S.chatUnread=0;}
+  _sRenderFull();
+};
+
+function _updateNavBadge(){
+  const el=document.getElementById('chatNavItem');if(!el)return;
+  const old=el.querySelector('.nav-badge');
+  if(S.chatUnread>0){if(old)old.textContent=S.chatUnread;else{const b=document.createElement('span');b.className='nav-badge';b.textContent=S.chatUnread;el.appendChild(b);}}
+  else if(old)old.remove();
+}
+
+window._completeTask=async function(si,ti){
+  if(IS_DEMO){
+    if(!S._demo.students[S.student.id].progress[si])S._demo.students[S.student.id].progress[si]={};
+    S._demo.students[S.student.id].progress[si][ti]=true;
+    S.student._progress=JSON.parse(JSON.stringify(S._demo.students[S.student.id].progress));
+    _sRenderContent();return;
+  }
+  try{await dbUpd(`sessions/${S.roomKey}/students/${S.student.id}/progress/${si}`,{[ti]:true});}
+  catch(e){toast('저장 오류가 발생했어요.');}
+};
+
+window._sendQ=async function(){
+  const text=document.getElementById('qInp')?.value?.trim();
+  if(!text){toast('질문 내용을 입력해주세요');return;}
+  const q={studentId:S.student.id,studentName:S.student.name,org:S.student.org,text,timestamp:Date.now(),answered:false};
+  if(IS_DEMO){const id=genId();S._demo.questions[id]=q;S.questions=S._demo.questions;document.getElementById('qInp').value='';toast('질문을 보냈습니다! ✉️');_sRenderContent();return;}
+  try{await dbPush(`sessions/${S.roomKey}/questions`,q);document.getElementById('qInp').value='';toast('질문을 보냈습니다! ✉️');}
+  catch(e){toast('전송 오류.');}
+};
+
+window._setStar=v=>{S.rating=v;document.querySelectorAll('.star-btn').forEach((el,i)=>el.classList.toggle('lit',i<v));};
+
+window._submitFb=async function(){
+  const text=document.getElementById('fbInp')?.value?.trim()||'';
+  const fb={studentId:S.student.id,studentName:S.student.name,org:S.student.org,rating:S.rating,text,timestamp:Date.now()};
+  if(IS_DEMO){S.fbDone=true;S._demo.feedback[genId()]=fb;_sRenderContent();return;}
+  try{await dbPush(`sessions/${S.roomKey}/feedback`,fb);S.fbDone=true;_sRenderContent();}
+  catch(e){toast('제출 오류.');}
+};
+
+// ══════════════════════════════════
+//  CHAT (수강생·강사 공용)
+// ══════════════════════════════════
+function _renderChat(role){
+  const isInst=role==='instructor';
+  const cont=document.getElementById(isInst?'dashContent':'sContent');
+  if(!cont)return;
+  const msgs=Object.entries(IS_DEMO?(S._demo.chat||{}):(S.chatMsgs||{})).sort((a,b)=>a[1].timestamp-b[1].timestamp);
+  const prev=document.getElementById('chatMsgs');
+  const wasBottom=prev?(prev.scrollHeight-prev.scrollTop-prev.clientHeight<80):true;
+
+  const msgsHtml=msgs.map(([,m])=>{
+    const isMe=isInst?(m.role==='instructor'):(m.senderId===S.student?.id);
+    const fromInst=m.role==='instructor';
+    const bblClass=isMe?(fromInst?'inst-sent':''):(fromInst?'from-inst':'from-other');
+    if(m.type==='system')return`<div class="msg-sys">— ${eh(m.text)} —</div>`;
+    if(m.type==='image'){
+      return`<div class="msg-wrap ${isMe?'me':'other'}">
+        ${!isMe?`<div class="msg-sender ${fromInst?'from-inst':''}">${fromInst?'👨‍🏫 강사':eh(m.senderName)}</div>`:''}
+        <img class="msg-img" src="${m.dataUrl}" alt="이미지" onclick="window._previewImg('${m.dataUrl}')">
+        <div class="msg-foot"><span class="msg-time">${ago(m.timestamp)}</span></div>
+      </div>`;
+    }
+    if(m.type==='link'){
+      const isPdf=m.url?.toLowerCase().includes('.pdf')||m.url?.includes('drive.google.com');
+      return`<div class="msg-wrap ${isMe?'me':'other'}">
+        ${!isMe?`<div class="msg-sender ${fromInst?'from-inst':''}">${fromInst?'👨‍🏫 강사':eh(m.senderName)}</div>`:''}
+        <div class="msg-bbl ${bblClass}" style="padding:0.38rem;">
+          <a href="${eh(m.url)}" target="_blank" rel="noopener" class="link-card">
+            <span class="link-card-icon">${isPdf?'📄':'🔗'}</span>
+            <div><div class="link-card-title">${eh(m.linkTitle||m.url)}</div><div class="link-card-url">${eh(m.url)}</div></div>
+          </a>
+          <div class="msg-foot"><span class="msg-time">${ago(m.timestamp)}</span><button class="copy-btn" data-copy="${eh(m.url)}">복사</button></div>
+        </div>
+      </div>`;
+    }
+    return`<div class="msg-wrap ${isMe?'me':'other'}">
+      ${!isMe?`<div class="msg-sender ${fromInst?'from-inst':''}">${fromInst?'👨‍🏫 강사':eh(m.senderName)}</div>`:''}
+      <div class="msg-bbl ${bblClass}">${linkify(m.text||'')}</div>
+      <div class="msg-foot"><span class="msg-time">${ago(m.timestamp)}</span><button class="copy-btn" data-copy="${eh(m.text||'')}">복사</button></div>
+    </div>`;
+  }).join('');
+
+  const allText=msgs.map(([,m])=>`[${m.senderName||'강사'}] ${m.type==='link'?m.url:m.type==='image'?'(이미지)':m.text||''}`).join('\n');
+
+  cont.innerHTML=`<div class="chat-wrap">
+    <div class="chat-topbar">
+      <span style="font-size:0.77rem;font-weight:600;color:var(--g600);">💬 채팅 <span style="color:var(--g400);font-weight:400;">${msgs.length}건</span></span>
+      <div style="display:flex;gap:0.3rem;">
+        <button class="btn btn-g btn-sm" data-copy="${eh(allText||'내역 없음')}">전체 복사</button>
+        ${isInst?`<button class="btn btn-g btn-sm" onclick="window._showShareModal()">📎 링크 공유</button>`:''}
+      </div>
+    </div>
+    <div class="chat-msgs" id="chatMsgs">
+      ${msgs.length===0?'<div style="text-align:center;padding:2.5rem 1rem;color:var(--g300);font-size:0.8rem;">아직 메시지가 없습니다</div>':''}
+      ${msgsHtml}
+    </div>
+    <div class="chat-input-bar">
+      <input type="file" id="imgFileInp" accept="image/*" style="display:none" onchange="window._sendImgFile(this)">
+      <button class="attach-btn" onclick="document.getElementById('imgFileInp').click()" title="이미지 첨부">📎</button>
+      <textarea id="chatInp" class="inp"
+        style="min-height:36px;max-height:96px;flex:1;font-size:0.875rem;padding:0.4rem 0.65rem;resize:none;line-height:1.4;"
+        placeholder="메시지 입력..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();window._sendChat();}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,96)+'px';"></textarea>
+      <button class="btn btn-p" style="flex-shrink:0;height:36px;padding:0 0.875rem;font-size:0.82rem;" onclick="window._sendChat()">전송</button>
+    </div>
+  </div>`;
+
+  const nc=document.getElementById('chatMsgs');
+  if(nc&&wasBottom)nc.scrollTop=nc.scrollHeight;
+}
+
+// 이미지 전송
+window._sendImgFile=async function(input){
+  const file=input.files?.[0];if(!file)return;
+  input.value='';
+  toast('이미지 압축 중...',1500);
+  try{
+    const dataUrl=await compressImg(file);
+    const isInst=S.view==='instructor';
+    const msg={senderId:isInst?'instructor':(S.student?.id||''),senderName:isInst?'강사':(S.student?.name||''),role:isInst?'instructor':'student',type:'image',dataUrl,timestamp:Date.now()};
+    if(IS_DEMO){const id=genId();if(!S._demo.chat)S._demo.chat={};S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;_renderChat(isInst?'instructor':'student');return;}
+    await dbPush(`sessions/${S.roomKey}/chat`,msg);
+  }catch(e){toast('이미지 전송 실패: '+e.message);}
+};
+
+window._previewImg=function(src){
+  const div=Object.assign(document.createElement('div'),{className:'img-preview-overlay'});
+  div.innerHTML=`<img src="${src}" alt="미리보기">`;
+  div.onclick=()=>div.remove();
+  document.body.appendChild(div);
+};
+
+window._sendChat=async function(){
+  const inp=document.getElementById('chatInp');
+  const text=inp?.value?.trim();if(!text)return;
+  const isInst=S.view==='instructor';
+  const msg={senderId:isInst?'instructor':(S.student?.id||''),senderName:isInst?'강사':(S.student?.name||''),role:isInst?'instructor':'student',text,timestamp:Date.now()};
+  if(IS_DEMO){
+    const id=genId();if(!S._demo.chat)S._demo.chat={};S._demo.chat[id]=msg;
+    S.chatMsgs=S._demo.chat;inp.value='';inp.style.height='auto';
+    _renderChat(isInst?'instructor':'student');return;
+  }
+  try{await dbPush(`sessions/${S.roomKey}/chat`,msg);inp.value='';inp.style.height='auto';}
+  catch(e){toast('전송 오류.');}
+};
+
+window._showShareModal=function(){
+  const div=Object.assign(document.createElement('div'),{className:'overlay',id:'shareModal'});
+  div.innerHTML=`<div class="modal">
+    <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:0.625rem;">📎 링크 / 파일 공유</h3>
+    <p style="font-size:0.75rem;color:var(--g500);margin-bottom:0.75rem;">수강생 채팅에 링크 카드로 표시됩니다</p>
+    <div class="field"><label>제목 (선택)</label><input id="sTitleInp" class="inp" placeholder="예: 오늘 실습 자료"></div>
+    <div class="field"><label>URL *</label><input id="sUrlInp" class="inp" placeholder="https://" onkeydown="if(event.key==='Enter')window._sendShare()"></div>
+    <div class="alert al-blue" style="margin-bottom:0.75rem;font-size:0.75rem;">💡 Google Drive 링크, PDF URL, 웹사이트 모두 가능합니다</div>
+    <div style="display:flex;gap:0.4rem;">
+      <button class="btn btn-t" style="flex:1;" onclick="window._sendShare()">공유하기</button>
+      <button class="btn btn-g" onclick="document.getElementById('shareModal').remove()">취소</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  setTimeout(()=>document.getElementById('sTitleInp')?.focus(),80);
+};
+
+window._sendShare=async function(){
+  const url=document.getElementById('sUrlInp')?.value?.trim();
+  const title=document.getElementById('sTitleInp')?.value?.trim();
+  if(!url){toast('URL을 입력해주세요');return;}
+  const msg={senderId:'instructor',senderName:'강사',role:'instructor',type:'link',url,linkTitle:title||url,timestamp:Date.now()};
+  document.getElementById('shareModal')?.remove();
+  if(IS_DEMO){const id=genId();if(!S._demo.chat)S._demo.chat={};S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;_renderChat('instructor');return;}
+  try{await dbPush(`sessions/${S.roomKey}/chat`,msg);}catch(e){toast('공유 오류.');}
+};
+
+// ══════════════════════════════════
+//  INSTRUCTOR: LOGIN
+// ══════════════════════════════════
+window._gotoInstLogin=function(){
+  S.view='inst-login';
+  document.getElementById('app').innerHTML=`
+    <div class="fill-page">
+      <div class="wrap">
+        <div class="card">
+          <div class="brand-mark inst-mark">👨‍🏫</div>
+          <div class="alert al-teal" style="text-align:center;margin-bottom:0.875rem;font-weight:600;font-size:0.78rem;">강사 전용 화면입니다</div>
+          <div class="field">
+            <label>비밀번호</label>
+            <input id="pwInp" class="inp" type="password" placeholder="강사 비밀번호"
+              onkeydown="if(event.key==='Enter')window._instLogin()">
+          </div>
+          <button class="btn btn-t btn-full" onclick="window._instLogin()">로그인</button>
+          <button class="btn btn-g btn-full btn-sm" style="margin-top:0.4rem;" onclick="viewHome()">← 뒤로</button>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(()=>document.getElementById('pwInp')?.focus(),80);
+};
+
+window._instLogin=function(){
+  if(document.getElementById('pwInp')?.value===INST_PW)viewInstSetup();
+  else{toast('비밀번호가 맞지 않습니다');document.getElementById('pwInp').value='';}
+};
+
+// ══════════════════════════════════
+//  INSTRUCTOR: SETUP
+// ══════════════════════════════════
+function viewInstSetup(){
+  S.view='inst-setup';
+  if(!S.editSteps)S.editSteps=JSON.parse(JSON.stringify(DEFAULT_STEPS));
+  _renderSetup();
+}
+
+function _renderSetup(){
+  const stepsHtml=S.editSteps.map((step,si)=>{
+    const tHtml=(step.tasks||[]).map((task,ti)=>`
+      <div style="display:flex;gap:0.3rem;align-items:center;margin-bottom:0.3rem;">
+        <input class="inp" style="flex:1;font-size:0.8rem;padding:0.34rem 0.6rem;" value="${eh(task)}"
+          onchange="window._updTask(${si},${ti},this.value)">
+        <button class="btn btn-g btn-sm" onclick="window._rmTask(${si},${ti})">✕</button>
+      </div>`).join('');
+    return`<div class="step-cfg">
+      <div class="step-cfg-head">
+        <input class="inp" style="flex:1;font-weight:700;font-size:0.83rem;" value="${eh(step.name)}"
+          onchange="window._updStepName(${si},this.value)">
+        <button class="btn btn-d btn-sm" onclick="window._rmStep(${si})">삭제</button>
+      </div>
+      ${tHtml}
+      <button class="btn btn-g btn-sm" onclick="window._addTask(${si})">+ 항목 추가</button>
+    </div>`;
+  }).join('');
+
+  const hasKey=ANTHROPIC_KEY&&ANTHROPIC_KEY!=="YOUR_ANTHROPIC_API_KEY";
+
+  document.getElementById('app').innerHTML=`
+    <div class="header inst-hd">
+      <div class="hd-l">
+        <span class="hd-name">👨‍🏫 강사 대시보드</span>
+        <span class="hd-sub">새 세션 만들기</span>
+      </div>
+      <div style="display:flex;gap:0.3rem;align-items:center;">
+        <span class="role-pill">강사 모드</span>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);" onclick="viewHome()">나가기</button>
+      </div>
+    </div>
+    <div style="max-width:680px;margin:0 auto;padding:calc(var(--hh) + 0.875rem) 1rem 2rem;">
+
+      <!-- AI 자동 생성 -->
+      <div class="card" style="margin-bottom:0.75rem;border:1.5px solid #BFDBFE;background:linear-gradient(135deg,#FAFBFF,#F5F3FF);">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;">
+          <span style="font-size:1.2rem;">✨</span>
+          <div>
+            <h3 style="font-size:0.87rem;font-weight:700;color:var(--g800);">AI로 실습 단계 자동 생성</h3>
+            <p style="font-size:0.71rem;color:var(--g500);">강의 자료를 넣으면 실습 단계를 자동으로 만들어드립니다</p>
+          </div>
+        </div>
+        ${!hasKey?`<div class="alert al-amber" style="margin-bottom:0.6rem;font-size:0.74rem;">⚠️ <strong>ANTHROPIC_KEY</strong> 미설정 — 파일 상단에 API 키를 입력해야 AI 자동생성이 작동합니다</div>`:''}
+        <div class="inp-mode-tabs">
+          <button class="inp-mode-tab ${S.inputMode==='text'?'active':''}" onclick="window._setInputMode('text')">✏️ 텍스트</button>
+          <button class="inp-mode-tab ${S.inputMode==='gdocs'?'active':''}" onclick="window._setInputMode('gdocs')">🔗 구글 닥스</button>
+          <button class="inp-mode-tab ${S.inputMode==='pdf'?'active':''}" onclick="window._setInputMode('pdf')">📄 PDF</button>
+        </div>
+        <div id="modeText" style="${S.inputMode!=='text'?'display:none;':''}">
+          <textarea id="outlineInp" class="inp" style="min-height:90px;font-size:0.84rem;background:white;"
+            placeholder="강의 개요나 대본을 여기에 붙여넣어 주세요..."></textarea>
+        </div>
+        <div id="modeGdocs" style="${S.inputMode!=='gdocs'?'display:none;':''}">
+          <input id="gdocsUrlInp" class="inp" style="background:white;" placeholder="https://docs.google.com/document/d/...">
+          <div class="alert al-amber" style="margin-top:0.4rem;font-size:0.72rem;">
+            ⚠️ 구글 닥스 직접 가져오기는 브라우저 보안 정책으로 대부분 차단됩니다.<br>
+            <strong>권장:</strong> 구글 닥스에서 전체 선택(Ctrl+A) → 복사 → 텍스트 탭에 붙여넣기
+          </div>
+        </div>
+        <div id="modePdf" style="${S.inputMode!=='pdf'?'display:none;':''}">
+          <input type="file" id="pdfFileInp" accept=".pdf" style="display:none" onchange="window._loadPdf(this)">
+          <div class="file-drop ${S.pdfData?'loaded':''}" id="pdfDrop"
+            onclick="document.getElementById('pdfFileInp').click()"
+            ondragover="event.preventDefault();this.classList.add('over');"
+            ondragleave="this.classList.remove('over');"
+            ondrop="event.preventDefault();this.classList.remove('over');window._loadPdf({files:event.dataTransfer.files});">
+            <div style="font-size:1.75rem;margin-bottom:0.3rem;">${S.pdfData?'✅':'📄'}</div>
+            <div style="font-size:0.78rem;color:var(--g500);">${S.pdfData?`<strong style="color:var(--green);">${eh(S.pdfName)}</strong> 로드됨`:'PDF 클릭 또는 드래그 (최대 10MB)'}</div>
+          </div>
+        </div>
+        <button class="btn btn-ai btn-full" style="margin-top:0.5rem;" onclick="window._genSteps()" id="genBtn" ${!hasKey?'disabled':''}>✨ AI 자동 분석하기</button>
+        <div id="genStatus"></div>
+      </div>
+
+      <!-- 방 이름 & 세션 제목 -->
+      <div class="card" style="margin-bottom:0.75rem;">
+        <div class="field">
+          <label>방 이름 * <span style="font-size:0.68rem;color:var(--g400);">(수강생이 이 이름으로 입장)</span></label>
+          <input id="roomNameInp" class="inp inp-room" placeholder="예: AI실습5월" value="${eh(S._lastRoomName||'')}">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>세션 제목</label>
+          <input id="titleInp" class="inp" value="${eh(S._lastTitle||'AI 실습 교육')}" placeholder="예: AI 활용 실습 교육 5월">
+        </div>
+      </div>
+
+      <!-- 단계 구성 -->
+      <div class="card" style="margin-bottom:0.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+          <h3 style="font-size:0.875rem;font-weight:700;">📚 실습 단계 구성</h3>
+          <button class="btn btn-g btn-sm" onclick="window._addStep()">+ 단계 추가</button>
+        </div>
+        <div id="stepsEdit">${stepsHtml}</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.75rem;">
+        <button class="btn btn-t btn-full btn-lg" onclick="window._createSession()">🚀 세션 시작하기</button>
+        <button class="btn btn-o btn-full" onclick="window._showResume()">🔑 기존 세션 이어가기</button>
+        <div id="resumeArea"></div>
+      </div>
+    </div>`;
+}
+
+// Input mode
+window._setInputMode=mode=>{
+  S.inputMode=mode;
+  ['text','gdocs','pdf'].forEach((m,i)=>{
+    const el=document.getElementById('mode'+['Text','Gdocs','Pdf'][i]);
+    if(el)el.style.display=m===mode?'':'none';
+  });
+  document.querySelectorAll('.inp-mode-tab').forEach((t,i)=>t.classList.toggle('active',i===(['text','gdocs','pdf'].indexOf(mode))));
+};
+
+// PDF loader
+window._loadPdf=function(input){
+  const file=input.files?.[0];if(!file)return;
+  if(file.size>10*1024*1024){toast('파일 크기가 10MB를 초과합니다');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    S.pdfData=e.target.result.split(',')[1];S.pdfName=file.name;
+    const drop=document.getElementById('pdfDrop');
+    if(drop){drop.className='file-drop loaded';drop.innerHTML=`<div style="font-size:1.75rem;margin-bottom:0.3rem;">✅</div><div style="font-size:0.78rem;"><strong style="color:var(--green);">${eh(file.name)}</strong> 로드됨</div>`;}
+    toast(`📄 "${file.name}" 로드 완료`);
+  };
+  reader.onerror=()=>toast('파일 읽기 오류');
+  reader.readAsDataURL(file);
+};
+
+// AI 생성
+window._genSteps=async function(){
+  const btn=document.getElementById('genBtn');
+  const status=document.getElementById('genStatus');
+  let input;
+  if(S.inputMode==='text'){
+    const text=document.getElementById('outlineInp')?.value?.trim();
+    if(!text){toast('강의 내용을 입력해주세요');return;}
+    input={type:'text',text};
+  }else if(S.inputMode==='gdocs'){
+    const url=document.getElementById('gdocsUrlInp')?.value?.trim();
+    if(!url){toast('구글 닥스 URL을 입력해주세요');return;}
+    btn.disabled=true;
+    status.innerHTML=`<div class="ai-spin" style="margin-top:0.5rem;"><span class="ai-dot"></span> 구글 닥스 불러오는 중...</div>`;
+    try{
+      const m=url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+      if(!m)throw new Error('올바른 구글 닥스 URL이 아닙니다');
+      const res=await fetch(`https://docs.google.com/document/d/${m[1]}/export?format=txt`);
+      if(!res.ok)throw new Error(`가져오기 실패 (${res.status})`);
+      const text=await res.text();
+      input={type:'text',text};
+    }catch(e){
+      status.innerHTML=`<div class="alert al-amber" style="margin-top:0.5rem;">❌ ${eh(e.message||'CORS 차단')}<br><span style="font-size:0.71rem;">→ 구글 닥스에서 전체 복사 후 <strong>텍스트 탭</strong>에 붙여넣어 주세요</span></div>`;
+      btn.disabled=false;return;
+    }
+  }else if(S.inputMode==='pdf'){
+    if(!S.pdfData){toast('PDF 파일을 먼저 선택해주세요');return;}
+    input={type:'pdf',base64:S.pdfData};
+  }
+  btn.disabled=true;
+  status.innerHTML=`<div class="ai-spin" style="margin-top:0.5rem;"><span class="ai-dot"></span> AI가 강의 내용을 분석하고 있습니다...</div>`;
+  try{
+    const result=await aiGenerateSteps(input);
+    S.editSteps=result.steps;
+    const ti=document.getElementById('titleInp');if(result.title&&ti)ti.value=result.title;
+    toast('✨ 실습 단계가 생성되었습니다!');
+    _renderSetup();
+  }catch(e){
+    status.innerHTML=`<div class="alert al-amber" style="margin-top:0.5rem;">❌ ${eh(e.message)}</div>`;
+    btn.disabled=false;
+  }
+};
+
+window._updStepName=(si,v)=>{S.editSteps[si].name=v;};
+window._updTask=(si,ti,v)=>{S.editSteps[si].tasks[ti]=v;};
+window._addTask=si=>{S.editSteps[si].tasks.push('새 항목');_renderSetup();};
+window._rmTask=(si,ti)=>{S.editSteps[si].tasks.splice(ti,1);_renderSetup();};
+window._addStep=()=>{S.editSteps.push({id:genId(),name:'새 실습 단계',tasks:['항목 1']});_renderSetup();};
+window._rmStep=si=>{if(S.editSteps.length<=1){toast('최소 1개 단계 필요');return;}S.editSteps.splice(si,1);_renderSetup();};
+
+window._showResume=()=>{
+  document.getElementById('resumeArea').innerHTML=`
+    <div class="card" style="margin-top:0.4rem;padding:0.875rem;">
+      <p style="font-size:0.78rem;margin-bottom:0.4rem;color:var(--g600);">기존 세션의 방 이름 입력</p>
+      <div style="display:flex;gap:0.4rem;">
+        <input id="resumeRoomInp" class="inp inp-room" style="font-size:0.95rem;" placeholder="방 이름">
+        <button class="btn btn-t" onclick="window._resumeSession()">이어가기</button>
+      </div>
+    </div>`;
+};
+
+window._resumeSession=async()=>{
+  const raw=document.getElementById('resumeRoomInp')?.value?.trim();
+  if(!raw){toast('방 이름을 입력해주세요');return;}
+  const key=roomKey(raw);
+  if(IS_DEMO){S.roomKey=key;S.roomName=raw;S._demo.config=S._demo.config||{title:'AI 실습 교육(데모)',steps:DEFAULT_STEPS,status:'active'};viewInstDash();return;}
+  try{
+    const snap=await dbGet(`sessions/${key}/config`);
+    if(!snap.exists()){toast(`"${raw}" 방을 찾을 수 없습니다`);return;}
+    S.roomKey=key;S.roomName=raw;viewInstDash();
+  }catch(e){toast('오류.');}
+};
+
+window._createSession=async()=>{
+  const rawRoom=document.getElementById('roomNameInp')?.value?.trim();
+  if(!rawRoom){toast('방 이름을 입력해주세요');return;}
+  const key=roomKey(rawRoom);
+  if(!key){toast('방 이름을 다시 확인해주세요');return;}
+  const title=document.getElementById('titleInp')?.value?.trim()||'AI 실습 교육';
+  const steps=S.editSteps.map(s=>({...s,tasks:(s.tasks||[]).filter(t=>t.trim())})).filter(s=>s.tasks.length>0);
+  if(!steps.length){toast('실습 단계와 항목을 입력해주세요');return;}
+  S._lastRoomName=rawRoom;S._lastTitle=title;
+  S.roomKey=key;S.roomName=rawRoom;
+  if(IS_DEMO){S._demo.config={title,steps,status:'active',createdAt:Date.now()};S.editSteps=null;viewInstDash();return;}
+  try{
+    const existing=await dbGet(`sessions/${key}/config`);
+    if(existing.exists()&&!confirm(`"${rawRoom}" 방이 이미 존재합니다. 덮어쓸까요?`))return;
+    await dbSet(`sessions/${key}/config`,{title,steps,status:'active',createdAt:Date.now()});
+    S.editSteps=null;viewInstDash();
+  }catch(e){toast('세션 생성 오류.');}
+};
+
+// ══════════════════════════════════
+//  INSTRUCTOR: DASHBOARD
+// ══════════════════════════════════
+function viewInstDash(){
+  clearListeners();
+  S.view='instructor';S.iTab='progress';
+  if(!IS_DEMO){
+    dbListen(`sessions/${S.roomKey}/config`,sn=>{S.sessionData=sn.val()||{};_renderInstDash();});
+    dbListen(`sessions/${S.roomKey}/students`,sn=>{S.students=sn.val()||{};if(S.iTab==='progress')_renderInstDash();});
+    dbListen(`sessions/${S.roomKey}/questions`,sn=>{S.questions=sn.val()||{};if(S.iTab==='questions')_renderInstDash();});
+    dbListen(`sessions/${S.roomKey}/feedback`,sn=>{S.feedback=sn.val()||{};if(S.iTab==='feedback')_renderInstDash();});
+    dbListen(`sessions/${S.roomKey}/chat`,sn=>{
+      S.chatMsgs=sn.val()||{};
+      const total=Object.keys(S.chatMsgs).length;
+      if(S.iTab==='chat'){S.chatSeenCount=total;_renderChat('instructor');}
+      else{S._chatUnreadInst=Math.max(0,total-S.chatSeenCount);_renderInstDash();}
+    });
+  }else{
+    S.sessionData=S._demo.config||{};S.students=S._demo.students;
+    S.questions=S._demo.questions;S.feedback=S._demo.feedback;
+    S.chatMsgs=S._demo.chat||{};
+  }
+  _renderInstDash();
+}
+
+function _renderInstDash(){
+  const cfg=S.sessionData||{};
+  const steps=cfg.steps||[];
+  const stuList=Object.entries(IS_DEMO?S._demo.students:S.students);
+  const qList=Object.entries(IS_DEMO?S._demo.questions:S.questions).sort((a,b)=>a[1].timestamp-b[1].timestamp);
+  const fbList=Object.entries(IS_DEMO?S._demo.feedback:S.feedback).sort((a,b)=>a[1].timestamp-b[1].timestamp);
+  const unanswered=qList.filter(([,q])=>!q.answered).length;
+  const chatTotal=Object.keys(IS_DEMO?S._demo.chat||{}:S.chatMsgs||{}).length;
+  const unreadChat=Math.max(0,chatTotal-(S.chatSeenCount||0));
+  const isEnded=cfg.status==='ended';
+
+  let tabHtml='';
+  if(S.iTab==='progress'){
+    if(stuList.length===0){
+      tabHtml=`<div class="alert al-teal">👋 아직 참여한 수강생이 없습니다.<br><br>
+        수강생은 <strong>"${eh(S.roomName||S.roomKey)}"</strong> 방 이름으로 입장하면 됩니다.
+      </div>`;
+    }else{
+      const banners=steps.map((step,si)=>{
+        const tc=step.tasks?.length||0;
+        const allDone=stuList.every(([,stu])=>Object.values((stu.progress||{})[si]||{}).filter(Boolean).length===tc);
+        return allDone?`<div class="all-done-banner">🎉 ${eh(step.name)} — 모든 수강생 완료!</div>`:'';
+      }).join('');
+      const hCols=steps.map((s,si)=>{
+        const short=(s.name||'단계'+(si+1)).replace(/실습\s*\d+[:：]?\s*/,'').slice(0,8);
+        return`<th><div title="${eh(s.name)}" style="font-size:0.67rem;">${eh(short)}</div><button class="bulk-btn" onclick="window._bulkStep(${si})">일괄완료</button></th>`;
+      }).join('');
+      const rows=stuList.map(([sid,stu])=>{
+        const cells=steps.map((step,si)=>{
+          const tc=step.tasks?.length||0;
+          const d=Object.values((stu.progress||{})[si]||{}).filter(Boolean).length;
+          const cls=d===tc?'pc-done':d>0?'pc-part':'pc-none';
+          const clickable=d<tc?` class="${cls} cell-click" onclick="window._completeStudentStep('${sid}',${si},'${eh(stu.name)}')" title="클릭: 완료 처리"`:` class="${cls}"`;
+          return`<td${clickable}>${d}/${tc}</td>`;
+        }).join('');
+        return`<tr>
+          <td><strong>${eh(stu.name)}</strong><br><span>${eh(stu.org||stu.seat||'')}</span>
+          <button class="bulk-btn" style="color:var(--g600);background:var(--g100);" onclick="window._bulkStudent('${sid}','${eh(stu.name)}')">전체완료</button></td>
+          ${cells}
+        </tr>`;
+      }).join('');
+      tabHtml=`${banners}<div style="overflow-x:auto;"><table class="prog-tbl">
+        <thead><tr><th style="text-align:left;min-width:82px;">수강생</th>${hCols}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <p style="font-size:0.67rem;color:var(--g400);margin-top:0.5rem;">💡 셀 클릭 또는 버튼으로 완료 처리 가능</p>`;
+    }
+  }else if(S.iTab==='questions'){
+    tabHtml=qList.length===0?`<div class="alert al-teal">아직 질문이 없습니다.</div>`
+      :qList.map(([id,q])=>`<div class="q-item ${q.answered?'answered':''}">
+        <div class="q-meta"><strong>${eh(q.studentName)}</strong> <span>${eh(q.org||q.seat||'')}</span>· ${ago(q.timestamp)} ${q.answered?'<span class="badge bg-green">답변완료</span>':''}</div>
+        <div class="q-text">${eh(q.text)}</div>
+        ${!q.answered?`<button class="btn btn-g btn-sm" style="margin-top:0.4rem;" onclick="window._markAnswered('${id}')">✅ 답변 완료</button>`:''}
+      </div>`).join('');
+  }else if(S.iTab==='feedback'){
+    if(fbList.length===0){tabHtml=`<div class="alert al-teal">세션 종료 후 수강생 피드백이 표시됩니다.</div>`;}
+    else{
+      const rated=fbList.filter(([,f])=>f.rating>0);
+      const avg=rated.length?(rated.reduce((a,[,f])=>a+f.rating,0)/rated.length).toFixed(1):'-';
+      tabHtml=`<div class="card" style="text-align:center;padding:0.875rem;margin-bottom:0.625rem;">
+        <p style="font-size:0.7rem;color:var(--g400);">평균 만족도</p>
+        <p style="font-size:1.875rem;font-weight:700;color:var(--amber);">${avg} ⭐</p>
+        <p style="font-size:0.7rem;color:var(--g400);">${fbList.length}명 참여</p>
+      </div>
+      ${fbList.map(([,f])=>`<div style="background:white;border:1px solid var(--g200);border-radius:var(--r-sm);padding:0.7rem;margin-bottom:0.4rem;">
+        <div class="q-meta"><strong>${eh(f.studentName)}</strong> <span>${eh(f.org||f.seat||'')}</span>${f.rating?' · '+'⭐'.repeat(f.rating):''}</div>
+        <div class="q-text">${f.text||'<span style="color:var(--g300);">(내용 없음)</span>'}</div>
+      </div>`).join('')}`;
+    }
+  }
+
+  document.getElementById('app').innerHTML=`
+    <div class="header inst-hd">
+      <div class="hd-l">
+        <span class="hd-name">👨‍🏫 ${eh(cfg.title||'강사 대시보드')}</span>
+        <span class="hd-sub"><span class="sync-dot ${IS_DEMO?'sync-demo':'sync-live'}"></span>${IS_DEMO?'데모':'실시간'} &nbsp;·&nbsp; 방: <strong>${eh(S.roomName||S.roomKey||'')}</strong> · ${stuList.length}명</span>
+      </div>
+      <div style="display:flex;gap:0.3rem;align-items:center;">
+        <span class="role-pill">강사 모드</span>
+        <span class="badge ${isEnded?'bg-red':'bg-green'}">${isEnded?'종료됨':'진행중'}</span>
+        ${!isEnded?`<button class="btn btn-d btn-sm" onclick="window._endSession()">종료</button>`:''}
+      </div>
+    </div>
+    <div class="tabs-bar" style="border-bottom-color:#B2EBF2;">
+      <div class="tab ${S.iTab==='progress'?'active':''}" onclick="window._iTab('progress')" style="${S.iTab==='progress'?'color:var(--teal);border-bottom-color:var(--teal);':''}">📊 현황</div>
+      <div class="tab ${S.iTab==='chat'?'active':''}" onclick="window._iTab('chat')" style="${S.iTab==='chat'?'color:var(--teal);border-bottom-color:var(--teal);':''}">
+        💬 채팅${unreadChat>0?`<span class="notif-dot">${unreadChat}</span>`:''}
+      </div>
+      <div class="tab ${S.iTab==='questions'?'active':''}" onclick="window._iTab('questions')" style="${S.iTab==='questions'?'color:var(--teal);border-bottom-color:var(--teal);':''}">
+        ❓ 질문${unanswered>0?`<span class="notif-dot">${unanswered}</span>`:''}
+      </div>
+      <div class="tab ${S.iTab==='feedback'?'active':''}" onclick="window._iTab('feedback')" style="${S.iTab==='feedback'?'color:var(--teal);border-bottom-color:var(--teal);':''}">📝 피드백</div>
+    </div>
+    <div id="dashContent" class="fc fc-inst ${S.iTab==='chat'?'fc-chat':''}">
+      ${S.iTab!=='chat'?`<div style="padding:0.875rem;">${tabHtml}</div>`:''}
+    </div>`;
+  if(S.iTab==='chat')_renderChat('instructor');
+}
+
+window._iTab=tab=>{
+  S.iTab=tab;
+  if(tab==='chat'){S.chatSeenCount=Object.keys(IS_DEMO?S._demo.chat||{}:S.chatMsgs||{}).length;S._chatUnreadInst=0;}
+  if(IS_DEMO)_renderInstDash();
+  else _renderInstDash();
+};
+
+// ── 일괄 완료 ──
+window._bulkStep=async function(si){
+  const step=(S.sessionData?.steps||[])[si];if(!step)return;
+  const tc=step.tasks?.length||0;
+  const stuIds=Object.keys(IS_DEMO?S._demo.students:S.students);
+  if(!stuIds.length){toast('참여한 수강생이 없습니다');return;}
+  if(!confirm(`"${step.name}"\n모든 수강생 ${stuIds.length}명 일괄 완료 처리할까요?`))return;
+  if(IS_DEMO){
+    stuIds.forEach(sid=>{if(!S._demo.students[sid].progress)S._demo.students[sid].progress={};const p={};for(let ti=0;ti<tc;ti++)p[ti]=true;S._demo.students[sid].progress[si]=p;});
+    S.students={...S._demo.students};_renderInstDash();toast(`✅ "${step.name}" 일괄 완료`);return;
+  }
+  try{
+    const upds={};stuIds.forEach(sid=>{for(let ti=0;ti<tc;ti++)upds[`sessions/${S.roomKey}/students/${sid}/progress/${si}/${ti}`]=true;});
+    await dbMultiUpd(upds);toast(`✅ "${step.name}" 일괄 완료`);
+  }catch(e){toast('오류.');}
+};
+
+window._bulkStudent=async function(sid,name){
+  const steps=S.sessionData?.steps||[];
+  if(!confirm(`"${name}" 수강생 모든 단계 완료 처리할까요?`))return;
+  if(IS_DEMO){
+    if(!S._demo.students[sid].progress)S._demo.students[sid].progress={};
+    steps.forEach((step,si)=>{const p={};(step.tasks||[]).forEach((_,ti)=>p[ti]=true);S._demo.students[sid].progress[si]=p;});
+    S.students={...S._demo.students};_renderInstDash();toast(`✅ "${name}" 전체 완료`);return;
+  }
+  try{
+    const upds={};steps.forEach((step,si)=>(step.tasks||[]).forEach((_,ti)=>{upds[`sessions/${S.roomKey}/students/${sid}/progress/${si}/${ti}`]=true;}));
+    await dbMultiUpd(upds);toast(`✅ "${name}" 전체 완료`);
+  }catch(e){toast('오류.');}
+};
+
+window._completeStudentStep=async function(sid,si,name){
+  const step=(S.sessionData?.steps||[])[si];if(!step)return;
+  const tc=step.tasks?.length||0;
+  if(!confirm(`"${name}" — "${step.name}" 완료 처리할까요?`))return;
+  if(IS_DEMO){
+    if(!S._demo.students[sid].progress)S._demo.students[sid].progress={};
+    const p={};for(let ti=0;ti<tc;ti++)p[ti]=true;S._demo.students[sid].progress[si]=p;
+    S.students={...S._demo.students};_renderInstDash();return;
+  }
+  try{const upds={};for(let ti=0;ti<tc;ti++)upds[`sessions/${S.roomKey}/students/${sid}/progress/${si}/${ti}`]=true;await dbMultiUpd(upds);}
+  catch(e){toast('오류.');}
+};
+
+window._markAnswered=async id=>{
+  if(IS_DEMO){const src=IS_DEMO?S._demo.questions:S.questions;if(src[id])src[id].answered=true;_renderInstDash();return;}
+  try{await dbUpd(`sessions/${S.roomKey}/questions/${id}`,{answered:true});}catch(e){toast('오류.');}
+};
+
+window._endSession=async()=>{
+  if(!confirm('세션을 종료하면 수강생들에게 피드백 화면이 표시됩니다.\n계속하시겠습니까?'))return;
+  if(IS_DEMO){S._demo.config.status='ended';S.sessionData.status='ended';_renderInstDash();toast('세션 종료 (데모)');return;}
+  try{await dbUpd(`sessions/${S.roomKey}/config`,{status:'ended'});toast('세션이 종료되었습니다.');}catch(e){toast('오류.');}
+};
+
+// ── Start ──
+viewHome();
+</script>
+</body>
+</html>
