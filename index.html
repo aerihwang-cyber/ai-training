@@ -191,10 +191,23 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
 .sync-live{background:#4ADE80;box-shadow:0 0 0 2px rgba(74,222,128,0.3);}
 .sync-demo{background:#FCD34D;}
 .q-item{background:white;border-radius:var(--r-sm);border:1px solid var(--g200);border-left:3px solid var(--blue);padding:0.7rem;margin-bottom:0.4rem;}
-.q-item.answered{border-left-color:var(--green);opacity:0.65;}
+.q-item.answered{border-left-color:var(--green);}
 .q-meta{font-size:0.68rem;color:var(--g400);margin-bottom:0.2rem;display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;}
 .q-meta strong{color:var(--g700);font-size:0.75rem;}
 .q-text{font-size:0.83rem;color:var(--g800);line-height:1.5;}
+.q-reply-box{margin-top:0.5rem;background:var(--teal-pale);border-radius:var(--r-sm);padding:0.5rem 0.625rem;border:1px solid #80DEEA;}
+.q-reply-label{font-size:0.67rem;font-weight:700;color:var(--teal);margin-bottom:0.2rem;}
+.q-reply-text{font-size:0.81rem;color:var(--g800);line-height:1.5;}
+.q-reply-form{margin-top:0.5rem;display:flex;gap:0.3rem;}
+.q-reply-form textarea{flex:1;min-height:34px;max-height:80px;font-size:0.8rem;padding:0.35rem 0.55rem;resize:none;line-height:1.4;}
+/* Step detail card in progress */
+.step-prog-card{background:white;border:1.5px solid var(--g200);border-radius:var(--r-sm);margin-bottom:0.5rem;overflow:hidden;}
+.step-prog-head{display:flex;align-items:center;justify-content:space-between;padding:0.45rem 0.75rem;background:var(--g50);border-bottom:1px solid var(--g200);}
+.step-prog-title{font-size:0.8rem;font-weight:700;color:var(--g700);}
+.stu-row{display:flex;align-items:center;padding:0.32rem 0.75rem;border-bottom:1px solid var(--g100);gap:0.4rem;}
+.stu-row:last-child{border-bottom:none;}
+.stu-name{font-size:0.78rem;font-weight:600;flex:1;}
+.stu-org{font-size:0.67rem;color:var(--g400);}
 .ai-spin{display:flex;align-items:center;gap:0.5rem;padding:0.7rem;background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #BFDBFE;border-radius:var(--r-sm);font-size:0.81rem;color:var(--blue);}
 .ai-dot{width:7px;height:7px;background:var(--blue);border-radius:50%;animation:pulse 0.8s ease-in-out infinite;}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:600;padding:1rem;}
@@ -284,13 +297,24 @@ function toast(msg,dur=2500){
 }
 
 document.addEventListener('click',e=>{
+  // 복사 버튼
   const btn=e.target.closest('[data-copy]');
-  if(!btn)return;
-  const text=btn.getAttribute('data-copy');
-  navigator.clipboard.writeText(text).then(()=>toast('복사됨! ✓')).catch(()=>{
-    const ta=Object.assign(document.createElement('textarea'),{value:text});
-    document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('복사됨! ✓');
-  });
+  if(btn){
+    const text=btn.getAttribute('data-copy');
+    navigator.clipboard.writeText(text).then(()=>toast('복사됨! ✓')).catch(()=>{
+      const ta=Object.assign(document.createElement('textarea'),{value:text});
+      document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('복사됨! ✓');
+    });
+    return;
+  }
+  // 이미지 미리보기
+  const imgEl=e.target.closest('[data-preview-id]');
+  if(imgEl){
+    const id=imgEl.getAttribute('data-preview-id');
+    const src=IMG_CACHE[id]||imgEl.src;
+    if(src)window._previewImg(src);
+    return;
+  }
 });
 
 // ── Firebase helpers (v9 unsubscribe 방식) ──
@@ -307,58 +331,113 @@ async function dbUpd(p,d){if(!IS_DEMO)return update(ref(db,p),d);}
 async function dbMultiUpd(upds){if(!IS_DEMO)return update(ref(db),upds);}
 
 // ══════════════════════════════════
-//  AI 자동 생성
+//  텍스트 → 실습 단계 자동 파싱 (API 없음)
 // ══════════════════════════════════
-const AI_SYS=`당신은 AI 실습 교육 전문가입니다. 강의 자료를 분석하여 수강생들이 수행하는 실습 단계와 완료 체크 항목을 JSON으로 추출하세요.
-규칙: 실습 가능한 구체적 단계 3~6개, 각 tasks는 완료 버튼을 누를 수 있는 명확한 행동 2~5개, JSON만 반환(마크다운 없이), 한국어 작성.
-형식: {"title":"교육 제목","steps":[{"id":"step_1","name":"단계명","tasks":["항목1","항목2"]}]}`;
+function parseStepsFromText(raw){
+  const lines=raw.split(/\n/).map(l=>l.trim()).filter(l=>l.length>1);
 
-async function aiGenerateSteps(input){
-  const hasKey=ANTHROPIC_KEY&&ANTHROPIC_KEY!=="YOUR_ANTHROPIC_API_KEY";
-  if(!hasKey)throw new Error('Anthropic API Key가 설정되지 않았습니다. 파일 상단 ANTHROPIC_KEY를 입력해주세요.');
-  let messages;
-  if(input.type==='pdf'){
-    messages=[{role:"user",content:[
-      {type:"document",source:{type:"base64",media_type:"application/pdf",data:input.base64}},
-      {type:"text",text:AI_SYS}
-    ]}];
-  }else{
-    messages=[{role:"user",content:`${AI_SYS}\n\n강의 내용:\n${input.text}`}];
+  // ── 패턴 정의 ──
+  // 단계 헤더: 숫자 목록, 제목처럼 생긴 줄, 실습/단계/순서 키워드
+  const isHeader=l=>{
+    if(/^[0-9０-９]+[.)：:。]\s*.{2,}/.test(l))return true;     // 1. 2) 3:
+    if(/^(step|단계|실습|순서|파트|part|■|▶|▷|◆|●|【)\s*[0-9]*/i.test(l))return true;
+    if(/^[★◎○•◇▪]\s*.{3,}/.test(l))return true;
+    if(l.length<=30&&!/[,，]/.test(l)&&lines.indexOf(l)===lines.indexOf(l))return false; // short non-list
+    return false;
+  };
+  const isTask=l=>{
+    if(/^[-─•·▪▫✓✔☐□]\s*.{2,}/.test(l))return true;   // 불릿
+    if(/^[가-힣a-zA-Z]\)\s*.{2,}/.test(l))return true;  // 가) a)
+    return false;
+  };
+  const cleanText=l=>l.replace(/^[0-9０-９]+[.)：:。\s]+/,'')
+    .replace(/^(step|단계|실습|순서|파트|part)\s*[0-9]*\s*[.)：:。\s]*/i,'')
+    .replace(/^[-─•·▶▷■◆●★◎○◇▪▫✓✔☐□가-힣a-zA-Z]\s*[).：:\s]*/,'')
+    .trim();
+
+  // ── 구조 파싱 시도 ──
+  let steps=[];
+  let curStep=null;
+
+  for(const line of lines){
+    if(isHeader(line)){
+      if(curStep)steps.push(curStep);
+      curStep={name:cleanText(line)||line,tasks:[]};
+    }else if(isTask(line)){
+      if(!curStep)curStep={name:'실습 단계',tasks:[]};
+      const t=cleanText(line);
+      if(t)curStep.tasks.push(t);
+    }else{
+      // 헤더도 태스크도 아닌 줄 → 현재 단계의 태스크로 추가하거나 새 단계로
+      if(curStep&&curStep.tasks.length<5&&line.length<60){
+        curStep.tasks.push(line);
+      }else if(!curStep){
+        curStep={name:line.slice(0,40),tasks:[]};
+      }
+    }
   }
-  const res=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-ipc":"true"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages})
+  if(curStep)steps.push(curStep);
+
+  // ── 태스크 없는 단계 처리: 단계 이름 자체를 태스크로 ──
+  steps=steps.filter(s=>s.name.trim()).map((s,i)=>{
+    if(s.tasks.length===0)s.tasks=[s.name];
+    return s;
   });
-  if(!res.ok){const e=await res.text();throw new Error(`API 오류 (${res.status}): ${e.slice(0,100)}`);}
-  const data=await res.json();
-  const raw=data.content?.[0]?.text||'';
-  return JSON.parse(raw.replace(/```json|```/g,'').trim());
+
+  // ── 파싱 실패 시 fallback: 문장 분리 ──
+  if(steps.length===0){
+    const sentences=raw
+      .replace(/[。\.!?！？]/g,'\n')
+      .split('\n').map(s=>s.trim()).filter(s=>s.length>4&&s.length<80);
+    const chunkSize=Math.ceil(sentences.length/3);
+    for(let i=0;i<3&&sentences.length>0;i++){
+      const chunk=sentences.splice(0,chunkSize);
+      steps.push({name:`실습 ${i+1}단계`,tasks:chunk.slice(0,4)});
+    }
+  }
+
+  // ── 최종 정리 ──
+  steps=steps.slice(0,6).map((s,i)=>({
+    id:`step_${i+1}`,
+    name:s.name.slice(0,50),
+    tasks:s.tasks.slice(0,5).map(t=>t.slice(0,60))
+  })).filter(s=>s.tasks.length>0);
+
+  // 제목 추출: 첫 줄이 짧고 목록이 아니면 제목으로
+  let title='AI 실습 교육';
+  const firstLine=lines[0];
+  if(firstLine&&firstLine.length<30&&!isHeader(firstLine)&&!isTask(firstLine)){
+    title=firstLine;
+  }
+
+  return{title,steps};
 }
+
+// ── 이미지 인메모리 캐시 (Firebase 저장 안 함 — 용량 초과 방지) ──
+const IMG_CACHE={};
 
 // 이미지 압축 (canvas)
 async function compressImg(file){
   return new Promise((resolve,reject)=>{
-    if(file.size>5*1024*1024){reject(new Error('파일이 5MB를 초과합니다'));return;}
-    const img=new Image();
-    const url=URL.createObjectURL(file);
-    img.onload=()=>{
-      URL.revokeObjectURL(url);
-      const MAX=720,canvas=document.createElement('canvas');
-      let w=img.width,h=img.height;
-      if(w>MAX||h>MAX){const r=Math.min(MAX/w,MAX/h);w=Math.round(w*r);h=Math.round(h*r);}
-      canvas.width=w;canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      let q=0.8;
-      const compress=()=>{
-        const d=canvas.toDataURL('image/jpeg',q);
-        if(d.length>300000&&q>0.2){q-=0.15;compress();}
-        else resolve(d);
+    if(file.size>8*1024*1024){reject(new Error('파일이 8MB를 초과합니다'));return;}
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=640,canvas=document.createElement('canvas');
+        let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){const r=Math.min(MAX/w,MAX/h);w=Math.round(w*r);h=Math.round(h*r);}
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        let q=0.75,d;
+        do{d=canvas.toDataURL('image/jpeg',q);q-=0.1;}while(d.length>200000&&q>0.2);
+        resolve(d);
       };
-      compress();
+      img.onerror=()=>reject(new Error('이미지 읽기 실패'));
+      img.src=e.target.result;
     };
-    img.onerror=()=>reject(new Error('이미지 읽기 실패'));
-    img.src=url;
+    reader.onerror=()=>reject(new Error('파일 읽기 실패'));
+    reader.readAsDataURL(file);
   });
 }
 
@@ -478,15 +557,20 @@ async function viewStudentSession(){
       S.questions=sn.val()||{};
       if(S.sTab==='question')_sRenderContent();
     });
-    // 세션 상태
-    dbListen(`sessions/${S.roomKey}/config/status`,sn=>{
-      if(sn.val()==='ended'){
-        if(!S.sessionData)S.sessionData={};
-        S.sessionData.status='ended';
-        if(S.sTab!=='feedback'){
-          S.sTab='feedback';_sRenderFull();
-          toast('📝 교육이 종료되었습니다. 피드백을 남겨주세요!',4000);
-        }
+    // 세션 상태 + 피드백 활성화
+    dbListen(`sessions/${S.roomKey}/config`,sn=>{
+      const cfg=sn.val()||{};
+      const wasOpen=S.sessionData?.status==='ended'||S.sessionData?.feedbackEnabled===true;
+      S.sessionData=cfg;
+      const nowOpen=cfg.status==='ended'||cfg.feedbackEnabled===true;
+      if(cfg.status==='ended'&&S.sTab!=='feedback'){
+        S.sTab='feedback';_sRenderFull();
+        toast('📝 교육이 종료되었습니다. 피드백을 남겨주세요!',4000);
+      }else if(!wasOpen&&nowOpen&&S.sTab!=='feedback'){
+        _sRenderFull();
+        toast('📝 피드백을 남겨주세요!',3000);
+      }else{
+        _sRenderFull();
       }
     });
   }else{
@@ -525,7 +609,7 @@ function _sRenderFull(){
       <div class="nav-item ${S.sTab==='question'?'active':''}" onclick="window._sTab('question')">
         <span class="nav-icon">❓</span><span>질문</span>
       </div>
-      <div class="nav-item ${S.sTab==='feedback'?'active':''} ${!isEnded?'disabled':''} ${isEnded&&S.sTab!=='feedback'?'ready':''}"
+      <div class="nav-item ${S.sTab==='feedback'?'active':''} ${!(isEnded||(cfg.feedbackEnabled===true))?'disabled':''} ${(isEnded||(cfg.feedbackEnabled===true))&&S.sTab!=='feedback'?'ready':''}"
            id="fbNavItem" onclick="window._sTab('feedback')">
         <span class="nav-icon">📝</span><span>피드백</span>
       </div>
@@ -585,6 +669,7 @@ function _sRenderContent(){
         ${myQs.map(([,q])=>`<div class="q-item ${q.answered?'answered':''}">
           <div class="q-meta">${ago(q.timestamp)} ${q.answered?'<span class="badge bg-green">답변완료</span>':''}</div>
           <div class="q-text">${eh(q.text)}</div>
+          ${q.reply?`<div class="q-reply-box"><div class="q-reply-label">👨‍🏫 강사 답변</div><div class="q-reply-text">${eh(q.reply)}</div></div>`:''}
         </div>`).join('')}
       </div>`:''}
     </div>`;
@@ -596,7 +681,9 @@ function _sRenderContent(){
 
 function _renderFeedbackForm(el){
   if(S.fbDone){el.innerHTML=`<div class="fill-page"><div style="text-align:center;padding:2rem;"><div style="font-size:3rem;margin-bottom:0.5rem;">🎉</div><h2 style="font-weight:700;">제출 완료!</h2><p style="color:var(--g400);font-size:0.875rem;margin-top:0.25rem;">오늘도 수고 많으셨어요</p></div></div>`;return;}
-  if(S.sessionData?.status!=='ended'){el.innerHTML=`<div class="fill-page"><div style="text-align:center;padding:2rem;color:var(--g400);font-size:0.84rem;">교육이 종료되면<br>피드백을 남길 수 있어요</div></div>`;return;}
+  const cfg=S.sessionData||{};
+  const fbOpen=cfg.status==='ended'||cfg.feedbackEnabled===true;
+  if(!fbOpen){el.innerHTML=`<div class="fill-page"><div style="text-align:center;padding:2rem;color:var(--g400);font-size:0.84rem;">강사님이 피드백을 열면<br>여기서 작성할 수 있어요</div></div>`;return;}
   S.rating=0;
   el.innerHTML=`<div style="padding:0.75rem;">
     <div class="card" style="text-align:center;">
@@ -674,9 +761,15 @@ function _renderChat(role){
     const bblClass=isMe?(fromInst?'inst-sent':''):(fromInst?'from-inst':'from-other');
     if(m.type==='system')return`<div class="msg-sys">— ${eh(m.text)} —</div>`;
     if(m.type==='image'){
+      // dataUrl은 IMG_CACHE에 저장, DOM에는 imgId만
+      const imgId=Object.keys(IS_DEMO?(S._demo.chat||{}):(S.chatMsgs||{})).find(k=>{
+        const v=IS_DEMO?S._demo.chat[k]:S.chatMsgs[k];return v&&v.timestamp===m.timestamp&&v.type==='image';
+      })||('img_'+m.timestamp);
+      if(m.dataUrl)IMG_CACHE[imgId]=m.dataUrl;
+      const src=IMG_CACHE[imgId]||m.dataUrl||'';
       return`<div class="msg-wrap ${isMe?'me':'other'}">
         ${!isMe?`<div class="msg-sender ${fromInst?'from-inst':''}">${fromInst?'👨‍🏫 강사':eh(m.senderName)}</div>`:''}
-        <img class="msg-img" src="${m.dataUrl}" alt="이미지" onclick="window._previewImg('${m.dataUrl}')">
+        <img class="msg-img" src="${src}" alt="이미지" data-preview-id="${eh(imgId)}" style="cursor:pointer;">
         <div class="msg-foot"><span class="msg-time">${ago(m.timestamp)}</span></div>
       </div>`;
     }
@@ -730,16 +823,32 @@ function _renderChat(role){
   if(nc&&wasBottom)nc.scrollTop=nc.scrollHeight;
 }
 
-// 이미지 전송
+// 이미지 전송 — dataUrl은 로컬 캐시, Firebase엔 placeholder만 저장
 window._sendImgFile=async function(input){
   const file=input.files?.[0];if(!file)return;
   input.value='';
-  toast('이미지 압축 중...',1500);
+  if(!file.type.startsWith('image/')){toast('이미지 파일만 첨부 가능합니다');return;}
+  toast('이미지 처리 중...',1500);
   try{
     const dataUrl=await compressImg(file);
     const isInst=S.view==='instructor';
-    const msg={senderId:isInst?'instructor':(S.student?.id||''),senderName:isInst?'강사':(S.student?.name||''),role:isInst?'instructor':'student',type:'image',dataUrl,timestamp:Date.now()};
-    if(IS_DEMO){const id=genId();if(!S._demo.chat)S._demo.chat={};S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;_renderChat(isInst?'instructor':'student');return;}
+    const imgId='img_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    IMG_CACHE[imgId]=dataUrl;
+    const msg={
+      senderId:isInst?'instructor':(S.student?.id||''),
+      senderName:isInst?'강사':(S.student?.name||''),
+      role:isInst?'instructor':'student',
+      type:'image',
+      dataUrl,   // Firebase에 저장 (압축 후 ~200KB 이하)
+      imgId,
+      timestamp:Date.now()
+    };
+    if(IS_DEMO){
+      const id=genId();
+      if(!S._demo.chat)S._demo.chat={};
+      S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;
+      _renderChat(isInst?'instructor':'student');return;
+    }
     await dbPush(`sessions/${S.roomKey}/chat`,msg);
   }catch(e){toast('이미지 전송 실패: '+e.message);}
 };
@@ -849,8 +958,6 @@ function _renderSetup(){
     </div>`;
   }).join('');
 
-  const hasKey=ANTHROPIC_KEY&&ANTHROPIC_KEY!=="YOUR_ANTHROPIC_API_KEY";
-
   document.getElementById('app').innerHTML=`
     <div class="header inst-hd">
       <div class="hd-l">
@@ -864,16 +971,15 @@ function _renderSetup(){
     </div>
     <div style="max-width:680px;margin:0 auto;padding:calc(var(--hh) + 0.875rem) 1rem 2rem;">
 
-      <!-- AI 자동 생성 -->
+      <!-- 자동 생성 -->
       <div class="card" style="margin-bottom:0.75rem;border:1.5px solid #BFDBFE;background:linear-gradient(135deg,#FAFBFF,#F5F3FF);">
         <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;">
           <span style="font-size:1.2rem;">✨</span>
           <div>
-            <h3 style="font-size:0.87rem;font-weight:700;color:var(--g800);">AI로 실습 단계 자동 생성</h3>
-            <p style="font-size:0.71rem;color:var(--g500);">강의 자료를 넣으면 실습 단계를 자동으로 만들어드립니다</p>
+            <h3 style="font-size:0.87rem;font-weight:700;color:var(--g800);">강의 개요로 실습 단계 자동 생성</h3>
+            <p style="font-size:0.71rem;color:var(--g500);">강의 개요나 목차를 붙여넣으면 실습 단계를 자동으로 만들어드립니다</p>
           </div>
         </div>
-        ${!hasKey?`<div class="alert al-amber" style="margin-bottom:0.6rem;font-size:0.74rem;">⚠️ <strong>ANTHROPIC_KEY</strong> 미설정 — 파일 상단에 API 키를 입력해야 AI 자동생성이 작동합니다</div>`:''}
         <div class="inp-mode-tabs">
           <button class="inp-mode-tab ${S.inputMode==='text'?'active':''}" onclick="window._setInputMode('text')">✏️ 텍스트</button>
           <button class="inp-mode-tab ${S.inputMode==='gdocs'?'active':''}" onclick="window._setInputMode('gdocs')">🔗 구글 닥스</button>
@@ -901,7 +1007,7 @@ function _renderSetup(){
             <div style="font-size:0.78rem;color:var(--g500);">${S.pdfData?`<strong style="color:var(--green);">${eh(S.pdfName)}</strong> 로드됨`:'PDF 클릭 또는 드래그 (최대 10MB)'}</div>
           </div>
         </div>
-        <button class="btn btn-ai btn-full" style="margin-top:0.5rem;" onclick="window._genSteps()" id="genBtn" ${!hasKey?'disabled':''}>✨ AI 자동 분석하기</button>
+        <button class="btn btn-ai btn-full" style="margin-top:0.5rem;" onclick="window._genSteps()" id="genBtn">✨ 단계 자동 추출하기</button>
         <div id="genStatus"></div>
       </div>
 
@@ -963,11 +1069,11 @@ window._loadPdf=function(input){
 window._genSteps=async function(){
   const btn=document.getElementById('genBtn');
   const status=document.getElementById('genStatus');
-  let input;
+  let text='';
+
   if(S.inputMode==='text'){
-    const text=document.getElementById('outlineInp')?.value?.trim();
+    text=document.getElementById('outlineInp')?.value?.trim();
     if(!text){toast('강의 내용을 입력해주세요');return;}
-    input={type:'text',text};
   }else if(S.inputMode==='gdocs'){
     const url=document.getElementById('gdocsUrlInp')?.value?.trim();
     if(!url){toast('구글 닥스 URL을 입력해주세요');return;}
@@ -978,23 +1084,30 @@ window._genSteps=async function(){
       if(!m)throw new Error('올바른 구글 닥스 URL이 아닙니다');
       const res=await fetch(`https://docs.google.com/document/d/${m[1]}/export?format=txt`);
       if(!res.ok)throw new Error(`가져오기 실패 (${res.status})`);
-      const text=await res.text();
-      input={type:'text',text};
+      text=await res.text();
     }catch(e){
       status.innerHTML=`<div class="alert al-amber" style="margin-top:0.5rem;">❌ ${eh(e.message||'CORS 차단')}<br><span style="font-size:0.71rem;">→ 구글 닥스에서 전체 복사 후 <strong>텍스트 탭</strong>에 붙여넣어 주세요</span></div>`;
       btn.disabled=false;return;
     }
   }else if(S.inputMode==='pdf'){
     if(!S.pdfData){toast('PDF 파일을 먼저 선택해주세요');return;}
-    input={type:'pdf',base64:S.pdfData};
+    // PDF는 텍스트 추출 불가 → 안내
+    status.innerHTML=`<div class="alert al-amber" style="margin-top:0.5rem;">PDF에서 직접 추출은 지원하지 않습니다.<br><span style="font-size:0.71rem;">→ PDF 내용을 복사해서 <strong>텍스트 탭</strong>에 붙여넣어 주세요</span></div>`;
+    return;
   }
+
   btn.disabled=true;
-  status.innerHTML=`<div class="ai-spin" style="margin-top:0.5rem;"><span class="ai-dot"></span> AI가 강의 내용을 분석하고 있습니다...</div>`;
+  status.innerHTML=`<div class="ai-spin" style="margin-top:0.5rem;"><span class="ai-dot"></span> 텍스트 분석 중...</div>`;
+
+  // 살짝 딜레이 (UI 반응성)
+  await new Promise(r=>setTimeout(r,300));
+
   try{
-    const result=await aiGenerateSteps(input);
+    const result=parseStepsFromText(text);
+    if(!result.steps.length)throw new Error('단계를 인식할 수 없습니다. 번호나 불릿(-, •)으로 구조화된 내용을 넣어주세요.');
     S.editSteps=result.steps;
     const ti=document.getElementById('titleInp');if(result.title&&ti)ti.value=result.title;
-    toast('✨ 실습 단계가 생성되었습니다!');
+    toast(`✨ ${result.steps.length}개 단계가 추출되었습니다!`);
     _renderSetup();
   }catch(e){
     status.innerHTML=`<div class="alert al-amber" style="margin-top:0.5rem;">❌ ${eh(e.message)}</div>`;
@@ -1089,59 +1202,108 @@ function _renderInstDash(){
 
   let tabHtml='';
   if(S.iTab==='progress'){
+    const fbEnabled=cfg.feedbackEnabled===true;
     if(stuList.length===0){
       tabHtml=`<div class="alert al-teal">👋 아직 참여한 수강생이 없습니다.<br><br>
         수강생은 <strong>"${eh(S.roomName||S.roomKey)}"</strong> 방 이름으로 입장하면 됩니다.
       </div>`;
     }else{
+      // 전체 배너
       const banners=steps.map((step,si)=>{
         const tc=step.tasks?.length||0;
         const allDone=stuList.every(([,stu])=>Object.values((stu.progress||{})[si]||{}).filter(Boolean).length===tc);
         return allDone?`<div class="all-done-banner">🎉 ${eh(step.name)} — 모든 수강생 완료!</div>`:'';
       }).join('');
-      const hCols=steps.map((s,si)=>{
-        const short=(s.name||'단계'+(si+1)).replace(/실습\s*\d+[:：]?\s*/,'').slice(0,8);
-        return`<th><div title="${eh(s.name)}" style="font-size:0.67rem;">${eh(short)}</div><button class="bulk-btn" onclick="window._bulkStep(${si})">일괄완료</button></th>`;
-      }).join('');
-      const rows=stuList.map(([sid,stu])=>{
-        const cells=steps.map((step,si)=>{
-          const tc=step.tasks?.length||0;
+
+      // 단계별 카드
+      const stepCards=steps.map((step,si)=>{
+        const tc=step.tasks?.length||0;
+        const doneCount=stuList.filter(([,stu])=>Object.values((stu.progress||{})[si]||{}).filter(Boolean).length===tc).length;
+        const stuRows=stuList.map(([sid,stu])=>{
           const d=Object.values((stu.progress||{})[si]||{}).filter(Boolean).length;
-          const cls=d===tc?'pc-done':d>0?'pc-part':'pc-none';
-          const clickable=d<tc?` class="${cls} cell-click" onclick="window._completeStudentStep('${sid}',${si},'${eh(stu.name)}')" title="클릭: 완료 처리"`:` class="${cls}"`;
-          return`<td${clickable}>${d}/${tc}</td>`;
+          const isDone=d===tc;
+          return`<div class="stu-row">
+            <span class="stu-name">${eh(stu.name)}</span>
+            <span class="stu-org">${eh(stu.org||stu.seat||'')}</span>
+            <span class="badge ${isDone?'bg-green':d>0?'bg-amber':'bg-gray'}" style="font-size:0.63rem;">${d}/${tc}</span>
+            ${!isDone?`<button class="btn btn-sm" style="padding:2px 6px;font-size:0.62rem;background:var(--teal-pale);color:var(--teal);border:none;border-radius:4px;cursor:pointer;" onclick="window._completeStudentStep('${sid}',${si},'${eh(stu.name)}')">완료</button>`:''}
+          </div>`;
         }).join('');
-        return`<tr>
-          <td><strong>${eh(stu.name)}</strong><br><span>${eh(stu.org||stu.seat||'')}</span>
-          <button class="bulk-btn" style="color:var(--g600);background:var(--g100);" onclick="window._bulkStudent('${sid}','${eh(stu.name)}')">전체완료</button></td>
-          ${cells}
-        </tr>`;
+        return`<div class="step-prog-card">
+          <div class="step-prog-head">
+            <span class="step-prog-title">${eh(step.name)}</span>
+            <div style="display:flex;align-items:center;gap:0.3rem;">
+              <span class="badge bg-green" style="font-size:0.63rem;">${doneCount}/${stuList.length}명</span>
+              <button class="bulk-btn" style="margin:0;padding:3px 6px;" onclick="window._bulkStep(${si})">일괄완료</button>
+            </div>
+          </div>
+          ${stuRows}
+        </div>`;
       }).join('');
-      tabHtml=`${banners}<div style="overflow-x:auto;"><table class="prog-tbl">
-        <thead><tr><th style="text-align:left;min-width:82px;">수강생</th>${hCols}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>
-      <p style="font-size:0.67rem;color:var(--g400);margin-top:0.5rem;">💡 셀 클릭 또는 버튼으로 완료 처리 가능</p>`;
+
+      // 수강생 목록 (삭제 포함)
+      const stuTable=`<div style="margin-top:0.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem;">
+          <span style="font-size:0.75rem;font-weight:700;color:var(--g700);">참여 수강생 ${stuList.length}명</span>
+        </div>
+        ${stuList.map(([sid,stu])=>`
+          <div style="display:flex;align-items:center;gap:0.3rem;padding:0.28rem 0.5rem;background:white;border:1px solid var(--g200);border-radius:var(--r-sm);margin-bottom:3px;">
+            <span style="font-size:0.78rem;font-weight:600;flex:1;">${eh(stu.name)}</span>
+            <span style="font-size:0.67rem;color:var(--g400);">${eh(stu.org||stu.seat||'')}</span>
+            <button class="bulk-btn" style="margin:0;padding:2px 5px;color:var(--g500);background:var(--g100);" onclick="window._bulkStudent('${sid}','${eh(stu.name)}')">전체완료</button>
+            <button class="btn btn-sm btn-d" style="padding:2px 6px;font-size:0.62rem;" onclick="window._deleteStudent('${sid}','${eh(stu.name)}')">삭제</button>
+          </div>`).join('')}
+      </div>`;
+
+      tabHtml=`${banners}${stepCards}${stuTable}
+        <div style="margin-top:0.75rem;padding:0.625rem;background:white;border:1px solid var(--g200);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:0.78rem;font-weight:600;color:var(--g700);">📝 피드백 수집</span>
+          <div style="display:flex;align-items:center;gap:0.4rem;">
+            <span style="font-size:0.72rem;color:${fbEnabled?'var(--green)':'var(--g400)'};">${fbEnabled?'열려있음':'닫혀있음'}</span>
+            <button class="btn btn-sm ${fbEnabled?'btn-g':'btn-s'}" onclick="window._toggleFeedback(${fbEnabled})">${fbEnabled?'닫기':'열기'}</button>
+          </div>
+        </div>`;
     }
   }else if(S.iTab==='questions'){
     tabHtml=qList.length===0?`<div class="alert al-teal">아직 질문이 없습니다.</div>`
       :qList.map(([id,q])=>`<div class="q-item ${q.answered?'answered':''}">
-        <div class="q-meta"><strong>${eh(q.studentName)}</strong> <span>${eh(q.org||q.seat||'')}</span>· ${ago(q.timestamp)} ${q.answered?'<span class="badge bg-green">답변완료</span>':''}</div>
+        <div class="q-meta">
+          <strong>${eh(q.studentName)}</strong>
+          <span>${eh(q.org||q.seat||'')}</span>· ${ago(q.timestamp)}
+          ${q.answered?'<span class="badge bg-green">답변완료</span>':''}
+        </div>
         <div class="q-text">${eh(q.text)}</div>
-        ${!q.answered?`<button class="btn btn-g btn-sm" style="margin-top:0.4rem;" onclick="window._markAnswered('${id}')">✅ 답변 완료</button>`:''}
+        ${q.reply?`<div class="q-reply-box"><div class="q-reply-label">👨‍🏫 강사 답변</div><div class="q-reply-text">${eh(q.reply)}</div></div>`:''}
+        ${!q.answered?`<div class="q-reply-form">
+          <textarea class="inp" id="replyInp_${id}" placeholder="답변을 입력하고 전송하거나, 구두 답변 후 완료 처리하세요..." rows="2"></textarea>
+          <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
+            <button class="btn btn-t btn-sm" onclick="window._sendReply('${id}')">답변 전송</button>
+            <button class="btn btn-g btn-sm" onclick="window._markAnswered('${id}')">완료만</button>
+          </div>
+        </div>`:''}
       </div>`).join('');
   }else if(S.iTab==='feedback'){
-    if(fbList.length===0){tabHtml=`<div class="alert al-teal">세션 종료 후 수강생 피드백이 표시됩니다.</div>`;}
+    if(fbList.length===0){tabHtml=`<div class="alert al-teal">피드백이 아직 없습니다. 현황 탭에서 피드백 수집을 열어주세요.</div>`;}
     else{
       const rated=fbList.filter(([,f])=>f.rating>0);
       const avg=rated.length?(rated.reduce((a,[,f])=>a+f.rating,0)/rated.length).toFixed(1):'-';
-      tabHtml=`<div class="card" style="text-align:center;padding:0.875rem;margin-bottom:0.625rem;">
+      tabHtml=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+        <span style="font-size:0.75rem;font-weight:700;color:var(--g700);">총 ${fbList.length}명 참여</span>
+        <button class="btn btn-t btn-sm" onclick="window._downloadFeedback()">📥 CSV 다운로드</button>
+      </div>
+      <div class="card" style="text-align:center;padding:0.875rem;margin-bottom:0.625rem;">
         <p style="font-size:0.7rem;color:var(--g400);">평균 만족도</p>
         <p style="font-size:1.875rem;font-weight:700;color:var(--amber);">${avg} ⭐</p>
-        <p style="font-size:0.7rem;color:var(--g400);">${fbList.length}명 참여</p>
+        <p style="font-size:0.7rem;color:var(--g400);">${fbList.length}명 참여 · ${rated.length}명 별점 입력</p>
       </div>
       ${fbList.map(([,f])=>`<div style="background:white;border:1px solid var(--g200);border-radius:var(--r-sm);padding:0.7rem;margin-bottom:0.4rem;">
-        <div class="q-meta"><strong>${eh(f.studentName)}</strong> <span>${eh(f.org||f.seat||'')}</span>${f.rating?' · '+'⭐'.repeat(f.rating):''}</div>
+        <div class="q-meta">
+          <strong>${eh(f.studentName)}</strong>
+          <span>${eh(f.org||f.seat||'')}</span>
+          ${f.rating?'<span style="color:var(--amber);">'+'⭐'.repeat(f.rating)+'</span>':'<span style="color:var(--g300);">별점 없음</span>'}
+          · ${ago(f.timestamp)}
+        </div>
         <div class="q-text">${f.text||'<span style="color:var(--g300);">(내용 없음)</span>'}</div>
       </div>`).join('')}`;
     }
@@ -1226,8 +1388,56 @@ window._completeStudentStep=async function(sid,si,name){
   catch(e){toast('오류.');}
 };
 
+// ── 피드백 CSV 다운로드 ──
+window._downloadFeedback=function(){
+  const cfg=S.sessionData||{};
+  const fbList=Object.entries(IS_DEMO?S._demo.feedback:S.feedback).sort((a,b)=>a[1].timestamp-b[1].timestamp);
+  if(!fbList.length){toast('피드백이 없습니다');return;}
+  const BOM='\uFEFF';
+  const header=['이름','소속','만족도(1-5)','소감/의견','제출시간'];
+  const rows=fbList.map(([,f])=>[
+    f.studentName||'',
+    f.org||f.seat||'',
+    f.rating||'',
+    (f.text||'').replace(/"/g,'""'),
+    f.timestamp?new Date(f.timestamp).toLocaleString('ko-KR'):''
+  ].map(v=>`"${v}"`).join(','));
+  const csv=BOM+[header.join(','),...rows].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=Object.assign(document.createElement('a'),{href:url,download:`피드백_${eh(cfg.title||S.roomName||'결과')}_${new Date().toLocaleDateString('ko-KR').replace(/\./g,'').replace(/ /g,'')}.csv`});
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  toast('📥 CSV 다운로드 완료!');
+};
+
+// ── 수강생 삭제 ──
+window._deleteStudent=async function(sid,name){
+  if(!confirm(`"${name}" 수강생을 목록에서 삭제할까요?`))return;
+  if(IS_DEMO){delete S._demo.students[sid];S.students={...S._demo.students};_renderInstDash();toast(`🗑 "${name}" 삭제됨`);return;}
+  try{await dbSet(`sessions/${S.roomKey}/students/${sid}`,null);toast(`🗑 "${name}" 삭제됨`);}catch(e){toast('삭제 오류.');}
+};
+
+// ── 피드백 켜기/끄기 ──
+window._toggleFeedback=async function(current){
+  const next=!current;
+  if(IS_DEMO){if(!S._demo.config)S._demo.config={};S._demo.config.feedbackEnabled=next;S.sessionData.feedbackEnabled=next;_renderInstDash();toast(next?'📝 피드백 열림':'피드백 닫힘');return;}
+  try{await dbUpd(`sessions/${S.roomKey}/config`,{feedbackEnabled:next});toast(next?'📝 피드백이 열렸습니다':'피드백이 닫혔습니다');}catch(e){toast('오류.');}
+};
+
+// ── 질문 답변 전송 ──
+window._sendReply=async function(id){
+  const text=document.getElementById(`replyInp_${id}`)?.value?.trim();
+  if(!text){toast('답변 내용을 입력해주세요');return;}
+  if(IS_DEMO){
+    const src=S._demo.questions;
+    if(src[id]){src[id].reply=text;src[id].answered=true;}
+    S.questions={...src};_renderInstDash();return;
+  }
+  try{await dbUpd(`sessions/${S.roomKey}/questions/${id}`,{reply:text,answered:true});}catch(e){toast('오류.');}
+};
+
 window._markAnswered=async id=>{
-  if(IS_DEMO){const src=IS_DEMO?S._demo.questions:S.questions;if(src[id])src[id].answered=true;_renderInstDash();return;}
+  if(IS_DEMO){const src=S._demo.questions;if(src[id])src[id].answered=true;_renderInstDash();return;}
   try{await dbUpd(`sessions/${S.roomKey}/questions/${id}`,{answered:true});}catch(e){toast('오류.');}
 };
 
