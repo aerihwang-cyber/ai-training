@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI 실습 교육 시스템</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root{
   --blue:#2563EB;--blue-d:#1D4ED8;--blue-pale:#EFF6FF;
@@ -147,6 +148,26 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
 .link-card-title{font-size:0.77rem;font-weight:700;color:var(--blue);}
 .link-card-url{font-size:0.62rem;color:var(--g400);word-break:break-all;margin-top:2px;}
 .msg-img{max-width:200px;max-height:160px;border-radius:8px;cursor:pointer;display:block;}
+/* 파일 카드 */
+.file-card{background:white;border:1px solid var(--g200);border-radius:8px;padding:0.5rem 0.65rem;max-width:260px;}
+.file-card-head{display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem;}
+.file-card-icon{font-size:1.2rem;flex-shrink:0;}
+.file-card-name{font-size:0.77rem;font-weight:700;color:var(--g800);word-break:break-all;line-height:1.3;}
+.file-card-size{font-size:0.63rem;color:var(--g400);}
+.file-card-preview{font-size:0.72rem;color:var(--g600);line-height:1.5;margin-top:0.3rem;max-height:80px;overflow:hidden;border-top:1px solid var(--g100);padding-top:0.3rem;white-space:pre-wrap;word-break:break-word;}
+.md-preview{font-size:0.8rem;line-height:1.6;color:var(--g800);}
+.md-preview h1,.md-preview h2,.md-preview h3{font-weight:700;margin:0.3rem 0 0.15rem;}
+.md-preview h1{font-size:0.95rem;}
+.md-preview h2{font-size:0.88rem;}
+.md-preview h3{font-size:0.82rem;}
+.md-preview ul,.md-preview ol{padding-left:1.1rem;margin:0.2rem 0;}
+.md-preview li{margin:0.1rem 0;}
+.md-preview code{background:var(--g100);padding:1px 4px;border-radius:3px;font-size:0.75rem;font-family:monospace;}
+.md-preview strong{font-weight:700;}
+.md-preview em{font-style:italic;}
+.md-preview hr{border:none;border-top:1px solid var(--g200);margin:0.4rem 0;}
+.md-expand{font-size:0.68rem;color:var(--blue);cursor:pointer;margin-top:0.2rem;display:inline-block;}
+.md-expand:hover{text-decoration:underline;}
 .msg-sys{text-align:center;font-size:0.69rem;color:var(--g400);padding:0.2rem;margin:0.2rem 0;}
 .attach-btn{background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0.2rem;color:var(--g400);flex-shrink:0;line-height:1;height:36px;display:flex;align-items:center;transition:color 0.15s;}
 .attach-btn:hover{color:var(--blue);}
@@ -263,6 +284,11 @@ const INST_PW="ccc2025";
 const IS_DEMO=FB_CFG.apiKey==="YOUR_API_KEY";
 let db;
 if(!IS_DEMO){try{const a=initializeApp(FB_CFG);db=getDatabase(a);}catch(e){console.error(e);}}
+
+// PDF.js worker 설정
+if(typeof pdfjsLib!=='undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 // ── 상태 ──
 const S={
@@ -773,6 +799,25 @@ function _renderChat(role){
         <div class="msg-foot"><span class="msg-time">${ago(m.timestamp)}</span></div>
       </div>`;
     }
+    if(m.type==='markdown'||m.type==='pdf-text'){
+      const icon=m.type==='pdf-text'?'📄':'📝';
+      const ext=m.type==='pdf-text'?'PDF':'MD';
+      const previewId='fp_'+m.timestamp;
+      return`<div class="msg-wrap ${isMe?'me':'other'}">
+        ${!isMe?`<div class="msg-sender ${fromInst?'from-inst':''}">${fromInst?'👨‍🏫 강사':eh(m.senderName)}</div>`:''}
+        <div class="file-card">
+          <div class="file-card-head">
+            <span class="file-card-icon">${icon}</span>
+            <div><div class="file-card-name">${eh(m.fileName||'파일')}</div><span class="badge bg-gray" style="font-size:0.58rem;margin-top:2px;">${ext}</span></div>
+          </div>
+          <div id="${previewId}" style="max-height:120px;overflow:hidden;">
+            ${m.type==='markdown'?_renderMd(m.content||''):`<div class="file-card-preview">${eh((m.content||'').slice(0,300))}${(m.content||'').length>300?'…':''}</div>`}
+          </div>
+          <span class="md-expand" onclick="window._expandFile('${previewId}')">전체 보기 ▼</span>
+          <div class="msg-foot" style="margin-top:0.25rem;"><span class="msg-time">${ago(m.timestamp)}</span><button class="copy-btn" data-copy="${eh(m.content||'')}">복사</button></div>
+        </div>
+      </div>`;
+    }
     if(m.type==='link'){
       const isPdf=m.url?.toLowerCase().includes('.pdf')||m.url?.includes('drive.google.com');
       return`<div class="msg-wrap ${isMe?'me':'other'}">
@@ -800,6 +845,7 @@ function _renderChat(role){
       <span style="font-size:0.77rem;font-weight:600;color:var(--g600);">💬 채팅 <span style="color:var(--g400);font-weight:400;">${msgs.length}건</span></span>
       <div style="display:flex;gap:0.3rem;">
         <button class="btn btn-g btn-sm" data-copy="${eh(allText||'내역 없음')}">전체 복사</button>
+        ${isInst?`<button class="btn btn-sm" style="background:var(--red-pale);color:var(--red);border:1px solid #FECACA;" onclick="window._clearData('chat')">🗑 전체 삭제</button>`:''}
         ${isInst?`<button class="btn btn-g btn-sm" onclick="window._showShareModal()">📎 링크 공유</button>`:''}
       </div>
     </div>
@@ -808,8 +854,8 @@ function _renderChat(role){
       ${msgsHtml}
     </div>
     <div class="chat-input-bar">
-      <input type="file" id="imgFileInp" accept="image/*" style="display:none" onchange="window._sendImgFile(this)">
-      <button class="attach-btn" onclick="document.getElementById('imgFileInp').click()" title="이미지 첨부">📎</button>
+      <input type="file" id="fileInp" accept="image/*,.pdf,.md,.markdown,text/markdown" style="display:none" onchange="window._sendFile(this)">
+      <button class="attach-btn" onclick="document.getElementById('fileInp').click()" title="파일 첨부 (이미지/PDF/MD)">📎</button>
       <textarea id="chatInp" class="inp"
         style="min-height:36px;max-height:96px;flex:1;font-size:0.875rem;padding:0.4rem 0.65rem;resize:none;line-height:1.4;"
         placeholder="메시지 입력..." rows="1"
@@ -823,35 +869,103 @@ function _renderChat(role){
   if(nc&&wasBottom)nc.scrollTop=nc.scrollHeight;
 }
 
-// 이미지 전송 — dataUrl은 로컬 캐시, Firebase엔 placeholder만 저장
-window._sendImgFile=async function(input){
+// ── 마크다운 → HTML (경량 렌더러) ──
+function _renderMd(text){
+  const escaped=text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html=escaped
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/^---$/gm,'<hr>')
+    .replace(/^[-*] (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/gs,m=>`<ul>${m}</ul>`)
+    .replace(/\n\n/g,'<br><br>')
+    .replace(/\n/g,'<br>');
+  return`<div class="md-preview">${html}</div>`;
+}
+
+// 파일 카드 전체 보기 토글
+window._expandFile=function(id){
+  const el=document.getElementById(id);
+  const btn=el?.nextElementSibling;
+  if(!el)return;
+  if(el.style.maxHeight==='none'){el.style.maxHeight='120px';if(btn)btn.textContent='전체 보기 ▼';}
+  else{el.style.maxHeight='none';if(btn)btn.textContent='접기 ▲';}
+};
+
+// ── 통합 파일 전송 ──
+window._sendFile=async function(input){
   const file=input.files?.[0];if(!file)return;
   input.value='';
-  if(!file.type.startsWith('image/')){toast('이미지 파일만 첨부 가능합니다');return;}
-  toast('이미지 처리 중...',1500);
-  try{
-    const dataUrl=await compressImg(file);
-    const isInst=S.view==='instructor';
-    const imgId='img_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    IMG_CACHE[imgId]=dataUrl;
-    const msg={
-      senderId:isInst?'instructor':(S.student?.id||''),
-      senderName:isInst?'강사':(S.student?.name||''),
-      role:isInst?'instructor':'student',
-      type:'image',
-      dataUrl,   // Firebase에 저장 (압축 후 ~200KB 이하)
-      imgId,
-      timestamp:Date.now()
-    };
-    if(IS_DEMO){
-      const id=genId();
-      if(!S._demo.chat)S._demo.chat={};
-      S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;
-      _renderChat(isInst?'instructor':'student');return;
-    }
-    await dbPush(`sessions/${S.roomKey}/chat`,msg);
-  }catch(e){toast('이미지 전송 실패: '+e.message);}
+  const isInst=S.view==='instructor';
+  const senderName=isInst?'강사':(S.student?.name||'');
+  const senderId=isInst?'instructor':(S.student?.id||'');
+  const role=isInst?'instructor':'student';
+
+  // 이미지
+  if(file.type.startsWith('image/')){
+    toast('이미지 처리 중...',1500);
+    try{
+      const dataUrl=await compressImg(file);
+      const imgId='img_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+      IMG_CACHE[imgId]=dataUrl;
+      const msg={senderId,senderName,role,type:'image',dataUrl,imgId,timestamp:Date.now()};
+      if(IS_DEMO){const id=genId();if(!S._demo.chat)S._demo.chat={};S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;_renderChat(isInst?'instructor':'student');return;}
+      await dbPush(`sessions/${S.roomKey}/chat`,msg);
+    }catch(e){toast('이미지 전송 실패: '+e.message);}
+    return;
+  }
+
+  // MD / Markdown
+  const isMd=file.name.match(/\.(md|markdown)$/i)||file.type==='text/markdown';
+  if(isMd){
+    if(file.size>200*1024){toast('MD 파일은 200KB 이하만 지원합니다');return;}
+    toast('MD 파일 읽는 중...',1500);
+    try{
+      const content=await file.text();
+      const msg={senderId,senderName,role,type:'markdown',fileName:file.name,content,timestamp:Date.now()};
+      if(IS_DEMO){const id=genId();if(!S._demo.chat)S._demo.chat={};S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;_renderChat(isInst?'instructor':'student');return;}
+      await dbPush(`sessions/${S.roomKey}/chat`,msg);
+      toast('📝 MD 파일 공유됨!');
+    }catch(e){toast('MD 파일 전송 실패: '+e.message);}
+    return;
+  }
+
+  // PDF
+  if(file.type==='application/pdf'||file.name.match(/\.pdf$/i)){
+    if(file.size>10*1024*1024){toast('PDF는 10MB 이하만 지원합니다');return;}
+    toast('PDF 텍스트 추출 중...',2500);
+    try{
+      const arrayBuf=await file.arrayBuffer();
+      const loadingTask=pdfjsLib.getDocument({data:arrayBuf});
+      const pdf=await loadingTask.promise;
+      let text='';
+      const maxPages=Math.min(pdf.numPages,5); // 최대 5페이지
+      for(let i=1;i<=maxPages;i++){
+        const page=await pdf.getPage(i);
+        const tc=await page.getTextContent();
+        text+=tc.items.map(it=>it.str).join(' ')+'\n';
+      }
+      text=text.trim().slice(0,3000); // 최대 3000자
+      if(!text)throw new Error('텍스트를 추출할 수 없는 PDF입니다 (스캔본 또는 이미지 기반)');
+      const msg={senderId,senderName,role,type:'pdf-text',fileName:file.name,
+        pageCount:pdf.numPages,content:text,timestamp:Date.now()};
+      if(IS_DEMO){const id=genId();if(!S._demo.chat)S._demo.chat={};S._demo.chat[id]=msg;S.chatMsgs=S._demo.chat;_renderChat(isInst?'instructor':'student');return;}
+      await dbPush(`sessions/${S.roomKey}/chat`,msg);
+      toast(`📄 PDF ${pdf.numPages}페이지 공유됨!`);
+    }catch(e){toast('PDF 전송 실패: '+e.message);}
+    return;
+  }
+
+  toast('이미지, PDF, MD 파일만 지원합니다');
 };
+
+// 구버전 호환
+window._sendImgFile=window._sendFile;
 
 window._previewImg=function(src){
   const div=Object.assign(document.createElement('div'),{className:'img-preview-overlay'});
@@ -1266,22 +1380,30 @@ function _renderInstDash(){
     }
   }else if(S.iTab==='questions'){
     tabHtml=qList.length===0?`<div class="alert al-teal">아직 질문이 없습니다.</div>`
-      :qList.map(([id,q])=>`<div class="q-item ${q.answered?'answered':''}">
-        <div class="q-meta">
-          <strong>${eh(q.studentName)}</strong>
-          <span>${eh(q.org||q.seat||'')}</span>· ${ago(q.timestamp)}
-          ${q.answered?'<span class="badge bg-green">답변완료</span>':''}
+      :`<div style="display:flex;justify-content:flex-end;margin-bottom:0.4rem;">
+          <button class="btn btn-sm" style="background:var(--red-pale);color:var(--red);border:1px solid #FECACA;" onclick="window._clearData('questions')">🗑 전체 삭제</button>
         </div>
-        <div class="q-text">${eh(q.text)}</div>
-        ${q.reply?`<div class="q-reply-box"><div class="q-reply-label">👨‍🏫 강사 답변</div><div class="q-reply-text">${eh(q.reply)}</div></div>`:''}
-        ${!q.answered?`<div class="q-reply-form">
-          <textarea class="inp" id="replyInp_${id}" placeholder="답변을 입력하고 전송하거나, 구두 답변 후 완료 처리하세요..." rows="2"></textarea>
-          <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
-            <button class="btn btn-t btn-sm" onclick="window._sendReply('${id}')">답변 전송</button>
-            <button class="btn btn-g btn-sm" onclick="window._markAnswered('${id}')">완료만</button>
+        ${qList.map(([id,q])=>`<div class="q-item ${q.answered?'answered':''}">
+          <div style="display:flex;align-items:flex-start;gap:0.4rem;">
+            <div style="flex:1;">
+              <div class="q-meta">
+                <strong>${eh(q.studentName)}</strong>
+                <span>${eh(q.org||q.seat||'')}</span>· ${ago(q.timestamp)}
+                ${q.answered?'<span class="badge bg-green">답변완료</span>':''}
+              </div>
+              <div class="q-text">${eh(q.text)}</div>
+              ${q.reply?`<div class="q-reply-box"><div class="q-reply-label">👨‍🏫 강사 답변</div><div class="q-reply-text">${eh(q.reply)}</div></div>`:''}
+              ${!q.answered?`<div class="q-reply-form">
+                <textarea class="inp" id="replyInp_${id}" placeholder="답변 입력 후 전송, 또는 구두 답변 후 완료만..." rows="2"></textarea>
+                <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
+                  <button class="btn btn-t btn-sm" onclick="window._sendReply('${id}')">답변 전송</button>
+                  <button class="btn btn-g btn-sm" onclick="window._markAnswered('${id}')">완료만</button>
+                </div>
+              </div>`:''}
+            </div>
+            <button class="btn btn-sm btn-d" style="padding:2px 6px;font-size:0.62rem;flex-shrink:0;" onclick="window._deleteItem('questions','${id}')">✕</button>
           </div>
-        </div>`:''}
-      </div>`).join('');
+        </div>`).join('')}`;
   }else if(S.iTab==='feedback'){
     if(fbList.length===0){tabHtml=`<div class="alert al-teal">피드백이 아직 없습니다. 현황 탭에서 피드백 수집을 열어주세요.</div>`;}
     else{
@@ -1290,21 +1412,27 @@ function _renderInstDash(){
       tabHtml=`
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
         <span style="font-size:0.75rem;font-weight:700;color:var(--g700);">총 ${fbList.length}명 참여</span>
-        <button class="btn btn-t btn-sm" onclick="window._downloadFeedback()">📥 CSV 다운로드</button>
+        <div style="display:flex;gap:0.3rem;">
+          <button class="btn btn-t btn-sm" onclick="window._downloadFeedback()">📥 CSV</button>
+          <button class="btn btn-sm" style="background:var(--red-pale);color:var(--red);border:1px solid #FECACA;" onclick="window._clearData('feedback')">🗑 전체 삭제</button>
+        </div>
       </div>
       <div class="card" style="text-align:center;padding:0.875rem;margin-bottom:0.625rem;">
         <p style="font-size:0.7rem;color:var(--g400);">평균 만족도</p>
         <p style="font-size:1.875rem;font-weight:700;color:var(--amber);">${avg} ⭐</p>
         <p style="font-size:0.7rem;color:var(--g400);">${fbList.length}명 참여 · ${rated.length}명 별점 입력</p>
       </div>
-      ${fbList.map(([,f])=>`<div style="background:white;border:1px solid var(--g200);border-radius:var(--r-sm);padding:0.7rem;margin-bottom:0.4rem;">
-        <div class="q-meta">
-          <strong>${eh(f.studentName)}</strong>
-          <span>${eh(f.org||f.seat||'')}</span>
-          ${f.rating?'<span style="color:var(--amber);">'+'⭐'.repeat(f.rating)+'</span>':'<span style="color:var(--g300);">별점 없음</span>'}
-          · ${ago(f.timestamp)}
+      ${fbList.map(([id,f])=>`<div style="background:white;border:1px solid var(--g200);border-radius:var(--r-sm);padding:0.7rem;margin-bottom:0.4rem;display:flex;gap:0.4rem;">
+        <div style="flex:1;">
+          <div class="q-meta">
+            <strong>${eh(f.studentName)}</strong>
+            <span>${eh(f.org||f.seat||'')}</span>
+            ${f.rating?'<span style="color:var(--amber);">'+'⭐'.repeat(f.rating)+'</span>':'<span style="color:var(--g300);">별점 없음</span>'}
+            · ${ago(f.timestamp)}
+          </div>
+          <div class="q-text">${f.text||'<span style="color:var(--g300);">(내용 없음)</span>'}</div>
         </div>
-        <div class="q-text">${f.text||'<span style="color:var(--g300);">(내용 없음)</span>'}</div>
+        <button class="btn btn-sm btn-d" style="padding:2px 6px;font-size:0.62rem;flex-shrink:0;align-self:flex-start;" onclick="window._deleteItem('feedback','${id}')">✕</button>
       </div>`).join('')}`;
     }
   }
@@ -1386,6 +1514,39 @@ window._completeStudentStep=async function(sid,si,name){
   }
   try{const upds={};for(let ti=0;ti<tc;ti++)upds[`sessions/${S.roomKey}/students/${sid}/progress/${si}/${ti}`]=true;await dbMultiUpd(upds);}
   catch(e){toast('오류.');}
+};
+
+// ── 데이터 전체/개별 삭제 ──
+const DATA_LABEL={chat:'채팅 내역',questions:'질문 내역',feedback:'피드백'};
+
+window._clearData=async function(type){
+  const label=DATA_LABEL[type]||type;
+  if(!confirm(`${label}을 전체 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`))return;
+  if(IS_DEMO){
+    if(type==='chat')S._demo.chat={};
+    else if(type==='questions')S._demo.questions={};
+    else if(type==='feedback')S._demo.feedback={};
+    S.chatMsgs=S._demo.chat||{};
+    S.questions=S._demo.questions||{};
+    S.feedback=S._demo.feedback||{};
+    if(type==='chat')_renderChat('instructor');else _renderInstDash();
+    toast(`🗑 ${label} 삭제됨`);return;
+  }
+  try{
+    await dbSet(`sessions/${S.roomKey}/${type}`,null);
+    toast(`🗑 ${label} 삭제됨`);
+  }catch(e){toast('삭제 오류.');}
+};
+
+window._deleteItem=async function(type,id){
+  if(IS_DEMO){
+    if(type==='questions')delete S._demo.questions[id];
+    else if(type==='feedback')delete S._demo.feedback[id];
+    else if(type==='chat')delete S._demo.chat[id];
+    _renderInstDash();return;
+  }
+  try{await dbSet(`sessions/${S.roomKey}/${type}/${id}`,null);}
+  catch(e){toast('삭제 오류.');}
 };
 
 // ── 피드백 CSV 다운로드 ──
